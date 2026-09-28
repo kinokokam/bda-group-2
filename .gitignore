@@ -1,0 +1,37 @@
+# --- secrets ---
+.env
+*.pem
+*.key
+.aws/
+kaggle.json
+
+# --- data (lives in S3, not git) ---
+aml_data/
+aml_out/
+data/
+curated/
+*.parquet
+*.csv
+!reference/*.csv
+*.csv.gz
+*.txt.gz
+HI-*_Trans.csv
+HI-*_Patterns.txt
+
+# --- python / jupyter ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# --- airflow local state ---
+airflow/logs/
+airflow/plugins/__pycache__/
+airflow/config/
+airflow.db
+
+# --- os / editors ---
+.DS_Store
+.vscode/
+.idea/
