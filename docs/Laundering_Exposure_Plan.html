@@ -1,0 +1,1097 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>html,body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Laundering Exposure Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+:root{
+  --bg:#F3F5F8; --surface:#FFFFFF; --surface-2:#EDF1F5; --lane:#F7F9FB;
+  --ink:#16212C; --ink-2:#44515F; --muted:#66727F; --rule:#D6DDE5;
+  --accent:#155E8C; --accent-soft:#E2EEF6; --accent-line:#7FA9C6;
+  --series-a:#1C78A8; --signal:#B9470B; --signal-soft:#FBEDE4;
+  --code-bg:#EEF2F6; --good:#1E7A4C; --good-soft:#E3F3EA;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-head:"IBM Plex Sans Condensed", "IBM Plex Sans", "Arial Narrow", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0D131A; --surface:#141D26; --surface-2:#1A2530; --lane:#111A22;
+    --ink:#E6ECF2; --ink-2:#B4BFCB; --muted:#8D99A7; --rule:#2A3643;
+    --accent:#7CB9E2; --accent-soft:#16293A; --accent-line:#3F6F90;
+    --series-a:#3B92C9; --signal:#DC733A; --signal-soft:#35231A;
+    --code-bg:#101820; --good:#5CC48F; --good-soft:#15291F;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0D131A; --surface:#141D26; --surface-2:#1A2530; --lane:#111A22;
+  --ink:#E6ECF2; --ink-2:#B4BFCB; --muted:#8D99A7; --rule:#2A3643;
+  --accent:#7CB9E2; --accent-soft:#16293A; --accent-line:#3F6F90;
+  --series-a:#3B92C9; --signal:#DC733A; --signal-soft:#35231A;
+  --code-bg:#101820; --good:#5CC48F; --good-soft:#15291F;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg); color:var(--ink); font-family:var(--f-body); font-size:15px; line-height:1.55; padding-inline:20px; padding-block:0 64px}
+.wrap{max-width:1080px; margin:0 auto}
+h1,h2,h3{font-family:var(--f-head); text-wrap:balance; margin:0; color:var(--ink)}
+h1{font-size:clamp(26px,3.6vw,36px); line-height:1.15; font-weight:600; letter-spacing:-0.01em}
+h2{font-size:22px; font-weight:600; line-height:1.25}
+h3{font-size:17px; font-weight:600; line-height:1.3}
+p{margin:0}
+a{color:var(--accent)}
+a:focus-visible, button:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+code, .mono{font-family:var(--f-mono); font-size:0.88em}
+.eyebrow{font-family:var(--f-mono); font-size:12px; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted)}
+.muted{color:var(--muted)}
+.lead{font-size:17px; color:var(--ink-2); max-width:68ch}
+
+/* header */
+header.top{padding-block:36px 20px; display:grid; gap:12px}
+.facts{display:flex; flex-wrap:wrap; gap:8px 28px; margin-top:6px; padding-top:14px; border-top:1px solid var(--rule)}
+.fact{display:grid; gap:0}
+.fact b{font-family:var(--f-head); font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; line-height:1.2}
+.fact b.hot{color:var(--signal)}
+.fact span{font-size:12.5px; color:var(--muted)}
+
+/* tabs */
+nav.tabs{position:sticky; top:env(safe-area-inset-top,0px); z-index:5; background:var(--bg); border-bottom:1px solid var(--rule); display:flex; gap:4px; overflow-x:auto; margin-bottom:28px}
+nav.tabs button{appearance:none; border:0; background:none; color:var(--ink-2); font:500 15px/1 var(--f-body); padding:14px 14px 12px; border-bottom:3px solid transparent; cursor:pointer; white-space:nowrap; display:flex; gap:8px; align-items:baseline}
+nav.tabs button .n{font-family:var(--f-mono); font-size:12px; color:var(--muted)}
+nav.tabs button[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--accent)}
+nav.tabs button:hover{color:var(--ink)}
+
+/* sections */
+.panel{display:grid; gap:40px}
+.block{display:grid; gap:14px}
+.block > .head{display:grid; gap:4px}
+.two{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:20px}
+.card{background:var(--surface); border:1px solid var(--rule); border-radius:8px; padding:18px 18px 16px; display:grid; gap:10px; align-content:start}
+
+ol.problem{margin:0; padding:0; list-style:none; display:grid; gap:10px; counter-reset:p}
+ol.problem li{counter-increment:p; display:grid; grid-template-columns:28px 1fr; gap:10px; max-width:78ch}
+ol.problem li::before{content:counter(p); font-family:var(--f-mono); font-size:12px; color:var(--accent); border:1px solid var(--accent-line); border-radius:50%; width:24px; height:24px; display:grid; place-items:center; margin-top:1px}
+ul.clean{margin:0; padding-left:18px; display:grid; gap:8px}
+ul.clean li{max-width:80ch}
+ul.clean li::marker{color:var(--muted)}
+
+/* tables */
+.tbl{overflow-x:auto; border:1px solid var(--rule); border-radius:8px; background:var(--surface)}
+table{border-collapse:collapse; width:100%; font-size:14px}
+th,td{text-align:left; vertical-align:top; padding:10px 12px; border-bottom:1px solid var(--rule)}
+tr:last-child td{border-bottom:0}
+th{font-family:var(--f-mono); font-size:11.5px; letter-spacing:0.05em; text-transform:uppercase; color:var(--muted); font-weight:500; background:var(--surface-2); white-space:nowrap}
+td.num, th.num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+td .step{font-family:var(--f-mono); font-size:12px; color:var(--accent); border:1px solid var(--accent-line); border-radius:50%; width:22px; height:22px; display:inline-grid; place-items:center}
+td code{white-space:nowrap}
+.tag{display:inline-block; font-family:var(--f-mono); font-size:11px; padding:1px 7px; border-radius:10px; background:var(--accent-soft); color:var(--accent); white-space:nowrap}
+.tag.hot{background:var(--signal-soft); color:var(--signal)}
+
+/* code */
+pre{margin:0; background:var(--code-bg); border:1px solid var(--rule); border-radius:8px; padding:14px 16px; overflow-x:auto; font-family:var(--f-mono); font-size:12.5px; line-height:1.55; color:var(--ink)}
+pre .c{color:var(--muted)}
+details{border:1px solid var(--rule); border-radius:8px; background:var(--surface)}
+details > summary{cursor:pointer; padding:12px 16px; font-weight:500; list-style:none; display:flex; justify-content:space-between; gap:12px}
+details > summary::-webkit-details-marker{display:none}
+details > summary::after{content:"Show"; font-family:var(--f-mono); font-size:12px; color:var(--accent)}
+details[open] > summary::after{content:"Hide"}
+details > .inner{padding:0 16px 16px; display:grid; gap:10px}
+
+/* figures */
+figure{margin:0; display:grid; gap:10px}
+figcaption{font-size:13.5px; color:var(--muted); max-width:90ch}
+.fig-scroll{overflow-x:auto; border:1px solid var(--rule); border-radius:8px; background:var(--surface); padding:14px}
+.fig-scroll svg{display:block; width:100%; height:auto}
+.diagram{min-width:820px}
+.lanes{min-width:860px}
+svg text{font-family:var(--f-body)}
+.chart svg{display:block; width:100%; height:auto}
+.chart rect.bar:hover{opacity:.8}
+.legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--ink-2)}
+.legend i{display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px}
+
+/* tools footer */
+.tools-foot{display:grid; gap:6px}
+ul.tools{margin:0; padding-left:18px; columns:4 170px; column-gap:24px; font-size:14px; color:var(--ink-2)}
+ul.tools li{break-inside:avoid; margin-bottom:4px}
+ul.tools li::marker{color:var(--muted)}
+
+/* live monitor mock */
+.monitor{gap:14px}
+.mon-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap}
+.chips{display:flex; flex-wrap:wrap; gap:8px}
+.chip{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:500; padding:4px 10px; border-radius:999px; border:1px solid var(--rule); background:var(--surface-2); color:var(--ink)}
+.chip.good{border-color:var(--good); color:var(--good); background:var(--good-soft)}
+.chip.bad{border-color:var(--signal); color:var(--signal); background:var(--signal-soft)}
+.agent-note{border:1px solid var(--rule); border-radius:8px; background:var(--surface-2); padding:12px 14px; display:grid; gap:6px; max-width:90ch}
+
+/* people */
+.cost-line{font-size:13px; color:var(--muted); margin-top:-4px}
+.cost-line b{color:var(--ink); font-weight:600}
+.people{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px}
+.person h3{display:flex; justify-content:space-between; gap:8px; align-items:baseline}
+.person h3 small{font-family:var(--f-mono); font-size:11.5px; font-weight:400; color:var(--muted); letter-spacing:0.03em}
+.phase{display:grid; gap:6px}
+.phase .ph{font-family:var(--f-mono); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted)}
+.phase ul{margin:0; padding-left:18px; display:grid; gap:4px; font-size:14px}
+.note{border-left:3px solid var(--accent-line); padding:8px 0 8px 14px; color:var(--ink-2); max-width:84ch}
+.note.hot{border-left-color:var(--signal)}
+
+@media (max-width:560px){
+  body{font-size:14.5px}
+  .facts{gap:8px 20px}
+  .fact b{font-size:20px}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important; animation:none!important} }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow">Big Data final project · Business Question 2 · IBM AML HI-Small</div>
+    <h1>Where does money laundering concentrate, and how does each scheme move money?</h1>
+    <p class="lead">A plan for answering one question well: map where laundering piles up across payment channels, currencies, banks and amounts, and profile the eight laundering schemes, using the cheapest AWS pipeline that still processes all 5 million transfers.</p>
+    <div class="facts" aria-label="Dataset at a glance">
+      <div class="fact"><b>5,078,345</b><span>transfers, 1–10 Sep 2022</span></div>
+      <div class="fact"><b>1 in 981</b><span>is laundering (5,177 rows)</span></div>
+      <div class="fact"><b class="hot">86.6%</b><span>of laundering goes through ACH</span></div>
+      <div class="fact"><b>370</b><span>labelled schemes, 8 typologies</span></div>
+      <div class="fact"><b>≈ US$3</b><span>estimated cost of the US$250 budget</span></div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Plan sections">
+    <button role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true"><span class="n">1</span>Overview</button>
+    <button role="tab" id="tab-pipeline" aria-controls="panel-pipeline" aria-selected="false"><span class="n">2</span>End-to-end pipeline</button>
+    <button role="tab" id="tab-monitor" aria-controls="panel-monitor" aria-selected="false"><span class="n">3</span>Live monitoring + AI</button>
+    <button role="tab" id="tab-team" aria-controls="panel-team" aria-selected="false"><span class="n">4</span>Work split</button>
+  </nav>
+
+  <!-- ============================ TAB 1 ============================ -->
+  <section class="panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">a · Problem statement</span><h2>Banks look everywhere equally, but laundering does not spread out evenly</h2></div>
+      <ol class="problem">
+        <li><span>Banks process millions of transfers a day and only about 1 in 1,000 is laundering, so checking everything the same way wastes most of the effort.</span></li>
+        <li><span>Limits and checks are usually set the same for every payment channel, currency and partner bank, without evidence of where the risk actually sits.</span></li>
+        <li><span>Launderers reuse a few recognisable schemes (fan-out, cycle, stack and others) spread over many accounts and banks, which you cannot see by looking at one transfer at a time.</span></li>
+        <li><span>Amounts arrive in 15 currencies, so nobody can fairly compare how much money is at risk in each channel or route until everything is in one currency.</span></li>
+        <li><span>We need a cheap, repeatable pipeline that turns 5 million raw transfers into a clear map of where laundering concentrates and which schemes are hardest to catch.</span></li>
+      </ol>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">b · What we have done so far</span><h2>Exploratory analysis on the real file already shows strong concentration</h2></div>
+      <p class="muted" style="max-width:80ch">We downloaded HI-Small from Kaggle, ran our profiling script (<code>profile_aml.py</code>) over every row, and trained a quick gradient-boosted tree model. Five findings shape the rest of the plan:</p>
+      <ul class="clean">
+        <li><b>One channel dominates.</b> ACH is 11.8% of transfers but 86.6% of laundering. Wire and Reinvestment have none at all.</li>
+        <li><b>A short list of banks.</b> 89 of 30,470 sending banks (0.3%) account for half of all laundering transfers. Individual bank-to-bank routes are spread thin: the top 10 routes carry only 2.9%.</li>
+        <li><b>Launderers stay in one currency.</b> 98% of laundering crosses banks, yet none of the 72,170 currency-conversion transfers is laundering. Saudi Riyal payments launder at 4.1× the average rate.</li>
+        <li><b>Mid-sized amounts.</b> 72% of laundering transfers are 1,000–50,000 in the payer's currency; the 10,000–50,000 band carries 2.5× its fair share.</li>
+        <li><b>Schemes behave differently.</b> Gather-scatter schemes run about six days across 15 accounts; bipartite schemes finish in a day. After 10 Sep the data is almost all laundering tail-ends, so we leave 11–18 Sep out.</li>
+      </ul>
+
+      <div class="two">
+        <figure class="card chart">
+          <h3>ACH carries seven times its share of laundering</h3>
+          <div class="legend"><span><i style="background:var(--series-a)"></i>Share of all transfers</span><span><i style="background:var(--signal)"></i>Share of laundering transfers</span></div>
+          <svg viewBox="0 0 560 318" role="img" aria-label="Grouped bars by payment format. ACH is 11.8% of transfers but 86.6% of laundering. Cheque 36.7% versus 6.3%, Credit Card 26.1% versus 4.0%, Cash 9.7% versus 2.1%, Bitcoin 2.9% versus 1.1%, Reinvestment 9.5% versus 0%, Wire 3.4% versus 0%.">
+            <g stroke="var(--rule)" stroke-width="1">
+              <line x1="120" y1="8" x2="120" y2="286"/><line x1="222.5" y1="8" x2="222.5" y2="286"/><line x1="325" y1="8" x2="325" y2="286"/><line x1="427.5" y1="8" x2="427.5" y2="286"/><line x1="530" y1="8" x2="530" y2="286"/>
+            </g>
+            <g font-size="11" fill="var(--muted)" text-anchor="middle">
+              <text x="120" y="304">0%</text><text x="222.5" y="304">25%</text><text x="325" y="304">50%</text><text x="427.5" y="304">75%</text><text x="530" y="304">100%</text>
+            </g>
+            <g font-size="12.5" fill="var(--ink-2)" text-anchor="end">
+              <text x="110" y="34">ACH</text><text x="110" y="74">Cheque</text><text x="110" y="114">Credit Card</text><text x="110" y="154">Cash</text><text x="110" y="194">Bitcoin</text><text x="110" y="234">Reinvestment</text><text x="110" y="274">Wire</text>
+            </g>
+            <!-- scale: 4.1 px per percentage point, x0 = 120 -->
+            <g fill="var(--series-a)">
+              <rect class="bar" x="120" y="16" width="48.4" height="12" rx="3"><title>ACH · 11.8% of transfers</title></rect>
+              <rect class="bar" x="120" y="56" width="150.5" height="12" rx="3"><title>Cheque · 36.7% of transfers</title></rect>
+              <rect class="bar" x="120" y="96" width="107.0" height="12" rx="3"><title>Credit Card · 26.1% of transfers</title></rect>
+              <rect class="bar" x="120" y="136" width="39.8" height="12" rx="3"><title>Cash · 9.7% of transfers</title></rect>
+              <rect class="bar" x="120" y="176" width="11.9" height="12" rx="3"><title>Bitcoin · 2.9% of transfers</title></rect>
+              <rect class="bar" x="120" y="216" width="38.9" height="12" rx="3"><title>Reinvestment · 9.5% of transfers</title></rect>
+              <rect class="bar" x="120" y="256" width="13.9" height="12" rx="3"><title>Wire · 3.4% of transfers</title></rect>
+            </g>
+            <g fill="var(--signal)">
+              <rect class="bar" x="120" y="30" width="355.1" height="12" rx="3"><title>ACH · 86.6% of laundering</title></rect>
+              <rect class="bar" x="120" y="70" width="25.8" height="12" rx="3"><title>Cheque · 6.3% of laundering</title></rect>
+              <rect class="bar" x="120" y="110" width="16.4" height="12" rx="3"><title>Credit Card · 4.0% of laundering</title></rect>
+              <rect class="bar" x="120" y="150" width="8.6" height="12" rx="3"><title>Cash · 2.1% of laundering</title></rect>
+              <rect class="bar" x="120" y="190" width="4.5" height="12" rx="3"><title>Bitcoin · 1.1% of laundering</title></rect>
+            </g>
+            <g font-size="11.5" fill="var(--ink)" font-variant-numeric="tabular-nums">
+              <text x="174" y="26">11.8%</text>
+              <text x="481" y="40" font-weight="600">86.6%</text>
+              <text x="276" y="66">36.7%</text>
+              <text x="151" y="80">6.3%</text>
+              <text x="141" y="244" fill="var(--muted)">0 laundering</text>
+              <text x="140" y="284" fill="var(--muted)">0 laundering</text>
+            </g>
+          </svg>
+          <figcaption>All 5,078,345 transfers, all 5,177 laundering rows. Hover a bar for its value.</figcaption>
+        </figure>
+
+        <figure class="card chart">
+          <h3>Bipartite, stack and cycle schemes slip through most</h3>
+          <div class="legend"><span><i style="background:var(--series-a)"></i>Laundering transfers caught in the top 0.5% of model scores</span></div>
+          <svg viewBox="0 0 560 318" role="img" aria-label="Detection rate by scheme type at a 0.5 percent alert budget, test days 8 to 10 September. Unstructured 35.6%, Bipartite 58.8%, Stack 67.7%, Cycle 69.6%, Random 80.4%, Gather-scatter 82.9%, Fan-in 87.9%, Fan-out 88.3%, Scatter-gather 94.1%. Overall 62.7%.">
+            <g stroke="var(--rule)" stroke-width="1">
+              <line x1="130" y1="6" x2="130" y2="286"/><line x1="230" y1="6" x2="230" y2="286"/><line x1="330" y1="6" x2="330" y2="286"/><line x1="430" y1="6" x2="430" y2="286"/><line x1="530" y1="6" x2="530" y2="286"/>
+            </g>
+            <g font-size="11" fill="var(--muted)" text-anchor="middle">
+              <text x="130" y="304">0%</text><text x="230" y="304">25%</text><text x="330" y="304">50%</text><text x="430" y="304">75%</text><text x="530" y="304">100%</text>
+            </g>
+            <g font-size="12.5" fill="var(--ink-2)" text-anchor="end">
+              <text x="120" y="24">Unstructured</text><text x="120" y="55">Bipartite</text><text x="120" y="86">Stack</text><text x="120" y="117">Cycle</text><text x="120" y="148">Random</text><text x="120" y="179">Gather-scatter</text><text x="120" y="210">Fan-in</text><text x="120" y="241">Fan-out</text><text x="120" y="272">Scatter-gather</text>
+            </g>
+            <!-- scale: 4 px per percentage point, x0 = 130 -->
+            <g fill="var(--series-a)">
+              <rect class="bar" x="130" y="12" width="142.4" height="16" rx="3"><title>Unstructured (no scheme label) · 207 of 582 caught · 35.6%</title></rect>
+              <rect class="bar" x="130" y="43" width="235.2" height="16" rx="3"><title>Bipartite · 40 of 68 caught · 58.8%</title></rect>
+              <rect class="bar" x="130" y="74" width="270.8" height="16" rx="3"><title>Stack · 109 of 161 caught · 67.7%</title></rect>
+              <rect class="bar" x="130" y="105" width="278.4" height="16" rx="3"><title>Cycle · 64 of 92 caught · 69.6%</title></rect>
+              <rect class="bar" x="130" y="136" width="321.6" height="16" rx="3"><title>Random · 45 of 56 caught · 80.4%</title></rect>
+              <rect class="bar" x="130" y="167" width="331.6" height="16" rx="3"><title>Gather-scatter · 150 of 181 caught · 82.9%</title></rect>
+              <rect class="bar" x="130" y="198" width="351.6" height="16" rx="3"><title>Fan-in · 80 of 91 caught · 87.9%</title></rect>
+              <rect class="bar" x="130" y="229" width="353.2" height="16" rx="3"><title>Fan-out · 83 of 94 caught · 88.3%</title></rect>
+              <rect class="bar" x="130" y="260" width="376.4" height="16" rx="3"><title>Scatter-gather · 160 of 170 caught · 94.1%</title></rect>
+            </g>
+            <line x1="380.8" y1="4" x2="380.8" y2="286" stroke="var(--ink)" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <text x="385" y="0" dy="10" font-size="11" fill="var(--ink)">overall 62.7%</text>
+            <g font-size="11.5" fill="var(--ink)" font-variant-numeric="tabular-nums">
+              <text x="278" y="24">35.6%</text><text x="359" y="55" text-anchor="end" style="fill:var(--surface)" font-weight="600">58.8%</text><text x="407" y="86">67.7%</text><text x="414" y="117">69.6%</text><text x="458" y="148">80.4%</text><text x="467" y="179">82.9%</text><text x="487" y="210">87.9%</text><text x="489" y="241">88.3%</text><text x="512" y="272">94.1%</text>
+            </g>
+          </svg>
+          <figcaption>Model trained on 1–7 Sep, tested on 8–10 Sep (1,345,559 transfers, 1,495 laundering). Top 0.5% = 6,728 alerts. "Unstructured" = laundering transfers not part of a labelled scheme.</figcaption>
+        </figure>
+      </div>
+
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">c · End goal and who benefits</span><h2>A laundering exposure map that tells each team where to act first</h2></div>
+      <ul class="clean">
+        <li>Which channels, currencies, banks and amount bands carry more than their fair share of laundering (measured in US dollars).</li>
+        <li>How each of the eight schemes moves money (hops, accounts, hours, dollars per hop).</li>
+        <li>Which schemes are hardest to catch.</li>
+      </ul>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Who</th><th>Their problem today</th><th>What our output gives them</th></tr></thead>
+          <tbody>
+            <tr><td><b>Bank risk-policy team</b><br><span class="muted">sets limits per channel</span></td><td>Same checks everywhere; no data on where risk sits.</td><td>A ranked list of channels and amount bands. Example: tightening ACH checks first covers 87% of laundering while touching 12% of customers' transfers.</td></tr>
+            <tr><td><b>Data analysts (Transactions)</b><br><span class="muted">review alerts</span></td><td>Their tools catch some schemes well and others barely.</td><td>Detection rate per scheme, so they add targeted rules for bipartite, stack and cycle patterns.</td></tr>
+            <tr><td><b>Correspondent-banking team</b><br><span class="muted">vets partner banks</span></td><td>Due diligence is spread across thousands of partner banks.</td><td>The short list of 89 sending banks behind half of all laundering, for enhanced checks.</td></tr>
+            <tr><td><b>Regulators and industry groups</b><br><span class="muted">publish typology guidance</span></td><td>Guidance is written from case stories, not measurements.</td><td>Measured profiles of each laundering scheme in US dollars and hours.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ TAB 2 ============================ -->
+  <section class="panel" role="tabpanel" id="panel-pipeline" aria-labelledby="tab-pipeline" hidden>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">Architecture</span><h2>Seven steps, one S3 bucket, nothing to switch off</h2></div>
+      <p class="lead" style="font-size:15.5px">Every piece is pay-per-use: S3 stores, Lambda runs small Python jobs, Athena does the heavy SQL over all 5 million rows, and Apache Airflow on a laptop runs the chain. XGBoost runs in our own Jupyter notebook, so the model step costs nothing. No cluster, no database, no paid dashboard or scheduler service.</p>
+
+      <figure>
+        <div class="fig-scroll">
+          <svg class="diagram" viewBox="0 0 1080 400" role="img" aria-label="Pipeline: Kaggle files are uploaded to S3 raw. A Lambda parses the patterns file into S3 curated. A Lambda fetches FX rates and country risk into S3 reference. Athena CTAS joins raw, reference and patterns into curated Parquet. Athena SQL builds BQ2 marts. A Jupyter notebook on a laptop downloads the curated Parquet, runs XGBoost and uploads model marts. A Lambda publishes marts as JSON to the S3 site folder, which a browser opens as the dashboard. ">
+            <defs>
+              <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--ink-2)"/></marker>
+            </defs>
+            <g style="color:var(--ink-2)" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#ah)">
+              <!-- 1 Kaggle -> raw -->
+              <line x1="150" y1="212" x2="236" y2="212"/>
+              <!-- 3 FX -> reference -->
+              <line x1="150" y1="58" x2="236" y2="58"/>
+              <!-- 2 raw -> parse -->
+              <line x1="310" y1="244" x2="310" y2="326"/>
+              <!-- 2 parse -> curated -->
+              <polyline points="380,358 540,358 540,248"/>
+              <!-- 4 raw -> curated -->
+              <line x1="380" y1="212" x2="476" y2="212"/>
+              <!-- 4 reference -> curated -->
+              <polyline points="380,58 560,58 560,176"/>
+              <!-- 5 curated -> marts -->
+              <line x1="620" y1="212" x2="716" y2="212"/>
+              <!-- 6 curated -> Jupyter -->
+              <polyline points="596,244 596,358 646,358"/>
+              <!-- 6 Jupyter -> marts -->
+              <line x1="790" y1="330" x2="790" y2="248"/>
+              <!-- 7 marts -> site -->
+              <line x1="860" y1="212" x2="956" y2="212"/>
+              <!-- site -> browser -->
+              <line x1="1015" y1="244" x2="1015" y2="326"/>
+            </g>
+
+            <!-- external sources (dashed) -->
+            <g stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="4 3" fill="var(--surface)">
+              <rect x="10" y="30" width="140" height="56" rx="6"/>
+              <rect x="10" y="180" width="140" height="64" rx="6"/>
+              <rect x="960" y="330" width="110" height="56" rx="6"/>
+              <rect x="650" y="330" width="170" height="56" rx="6"/>
+            </g>
+            <!-- S3 folders -->
+            <g stroke="var(--accent)" stroke-width="1.5" fill="var(--accent-soft)">
+              <rect x="240" y="30" width="140" height="56" rx="6"/>
+              <rect x="240" y="180" width="140" height="64" rx="6"/>
+              <rect x="480" y="180" width="140" height="64" rx="6"/>
+              <rect x="720" y="180" width="140" height="64" rx="6"/>
+              <rect x="960" y="180" width="110" height="64" rx="6"/>
+            </g>
+            <!-- compute boxes -->
+            <g stroke="var(--ink-2)" stroke-width="1.2" fill="var(--surface)">
+              <rect x="240" y="330" width="140" height="56" rx="6"/>
+            </g>
+
+            <!-- node labels -->
+            <g text-anchor="middle" font-size="13" font-weight="600" fill="var(--ink)">
+              <text x="80" y="54">Frankfurter FX</text>
+              <text x="80" y="206">Kaggle HI-Small</text>
+              <text x="310" y="54">S3 reference/</text>
+              <text x="310" y="206">S3 raw/</text>
+              <text x="550" y="206">S3 curated/</text>
+              <text x="790" y="206">S3 marts/</text>
+              <text x="1015" y="206">S3 site/</text>
+              <text x="310" y="354">Lambda</text>
+              <text x="735" y="354">Jupyter notebook</text>
+              <text x="1015" y="354">Browser</text>
+            </g>
+            <g text-anchor="middle" font-size="11.5" fill="var(--ink-2)">
+              <text x="80" y="72">+ Basel AML CSV</text>
+              <text x="80" y="224">CSV + Patterns.txt</text>
+              <text x="310" y="72">FX + country risk</text>
+              <text x="310" y="224">476 MB CSV</text>
+              <text x="550" y="224">Parquet by date</text>
+              <text x="790" y="224">BQ2 result tables</text>
+              <text x="1015" y="224">HTML + JSON</text>
+              <text x="310" y="372">parse_patterns</text>
+              <text x="735" y="372">XGBoost, on a laptop</text>
+              <text x="1015" y="372">Plotly dashboard</text>
+            </g>
+
+            <!-- arrow labels -->
+            <g text-anchor="middle" font-size="11.5" fill="var(--ink)">
+              <text x="193" y="204">laptop</text><text x="193" y="230">aws s3 cp</text>
+              <text x="193" y="50">Lambda</text><text x="193" y="76">fetch_fx</text>
+              <text x="428" y="204">Athena</text><text x="428" y="230">CTAS</text>
+              <text x="668" y="204">Athena</text><text x="668" y="230">SQL marts</text>
+              <text x="908" y="204">Lambda</text><text x="908" y="230">publish</text>
+            </g>
+            <g font-size="11" fill="var(--muted)">
+              <text x="318" y="292">Patterns.txt</text>
+              <text x="392" y="350">curated/patterns/</text>
+              <text x="410" y="50">FX + risk joined in</text>
+              <text x="604" y="300">download Parquet</text>
+              <text x="798" y="286">upload to</text><text x="798" y="299">marts/model/</text>
+              <text x="1023" y="292">opens</text>
+            </g>
+
+            <!-- step badges -->
+            <g font-size="11" font-weight="600" text-anchor="middle">
+              <g><circle cx="193" cy="166" r="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/><text x="193" y="170" fill="var(--accent)">1</text></g>
+              <g><circle cx="291" cy="288" r="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/><text x="291" y="292" fill="var(--accent)">2</text></g>
+              <g><circle cx="193" cy="18" r="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/><text x="193" y="22" fill="var(--accent)">3</text></g>
+              <g><circle cx="428" cy="166" r="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/><text x="428" y="170" fill="var(--accent)">4</text></g>
+              <g><circle cx="668" cy="166" r="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/><text x="668" y="170" fill="var(--accent)">5</text></g>
+              <g><circle cx="578" cy="300" r="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/><text x="578" y="304" fill="var(--accent)">6</text></g>
+              <g><circle cx="908" cy="166" r="10" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.5"/><text x="908" y="170" fill="var(--accent)">7</text></g>
+            </g>
+
+          </svg>
+        </div>
+        <div class="tools-foot">
+          <span class="eyebrow">Tools</span>
+          <ul class="tools">
+            <li>Kaggle (kagglehub)</li>
+            <li>AWS CLI</li>
+            <li>Amazon S3</li>
+            <li>AWS Lambda</li>
+            <li>Amazon Athena</li>
+            <li>Jupyter Notebook + XGBoost</li>
+            <li>Apache Airflow (Docker)</li>
+            <li>Plotly.js dashboard</li>
+          </ul>
+        </div>
+      </figure>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">Step by step</span><h2>What each step reads, writes and costs</h2></div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>#</th><th>Step</th><th>Tool</th><th>Reads → writes</th><th>What happens</th><th class="num">Cost</th></tr></thead>
+          <tbody>
+            <tr><td><span class="step">1</span></td><td><b>Ingest</b></td><td>Laptop + AWS CLI</td><td>Kaggle → <code>raw/trans/</code>, <code>raw/patterns/</code></td><td>Download the two HI-Small files with <code>kagglehub</code> (Kaggle is blocked on some networks, so a laptop does this) and upload with <code>aws s3 cp</code>.</td><td class="num">$0</td></tr>
+            <tr><td><span class="step">2</span></td><td><b>Parse schemes</b></td><td>Lambda <code>parse_patterns</code> (Python)</td><td><code>raw/patterns/</code> → <code>curated/patterns/</code></td><td>Reads the <code>BEGIN LAUNDERING ATTEMPT … END</code> blocks and writes one CSV row per transfer with <code>attempt_id</code> and typology (370 schemes, 3,209 rows).</td><td class="num">free tier</td></tr>
+            <tr><td><span class="step">3</span></td><td><b>Fetch FX</b></td><td>Lambda <code>fetch_fx</code></td><td>Frankfurter API → <code>reference/fx/</code></td><td>One call for 1–18 Sep 2022 rates, weekends filled with Friday's rate, plus hand-added Saudi Riyal (fixed 3.75), Ruble and Bitcoin rows. The currency lookup CSV goes to <code>reference/currency/</code>.</td><td class="num">free tier</td></tr>
+            <tr><td><span class="step">4</span></td><td><b>Clean and enrich</b></td><td>Athena DDL + CTAS</td><td><code>raw/</code> + <code>reference/</code> + <code>curated/patterns/</code> → <code>curated/transactions/</code></td><td>Drops 9 duplicates, converts amounts to USD, adds flags (cross-bank, cross-currency, amount band, hour), attaches the scheme label, writes Snappy Parquet split by date. A second CTAS builds <code>curated/accounts/</code> (fan-in / fan-out per account).</td><td class="num">≈ $0.01</td></tr>
+            <tr><td><span class="step">5</span></td><td><b>Analyse</b></td><td>Athena SQL (CTAS)</td><td><code>curated/</code> → <code>marts/</code></td><td>Builds the seven BQ2 result tables listed below. Each reads only the columns it needs from Parquet.</td><td class="num">cents</td></tr>
+            <tr><td><span class="step">6</span></td><td><b>Model drivers</b></td><td>Jupyter notebook (laptop) + XGBoost</td><td><code>curated/</code> → <code>marts/model/</code></td><td>Download the curated Parquet with <code>aws s3 sync</code>, run time-split XGBoost, feature importance and SHAP, detection rate per scheme, risk-weighted exposure; upload the result CSVs with <code>aws s3 cp</code>.</td><td class="num">$0</td></tr>
+            <tr><td><span class="step">7</span></td><td><b>Publish</b></td><td>Lambda <code>publish</code> + S3 static site</td><td><code>marts/</code> → <code>site/data/*.json</code></td><td>Runs a <code>SELECT *</code> on each small mart and writes a fixed-name JSON file; <code>site/index.html</code> draws the charts with Plotly.js.</td><td class="num">≈ $0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">Data used</span><h2>One Kaggle dataset, two small public lookups, and our XGBoost notebook</h2></div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Data</th><th>Source</th><th>Size</th><th>Enters at</th><th>Used for</th></tr></thead>
+          <tbody>
+            <tr><td><b>HI-Small_Trans.csv</b></td><td><a href="https://www.kaggle.com/datasets/ealtman2019/ibm-transactions-for-anti-money-laundering-aml" target="_blank" rel="noopener">Kaggle, IBM AML</a></td><td class="num">476 MB · 5,078,345 rows</td><td>Step 1</td><td>Every analysis</td></tr>
+            <tr><td><b>HI-Small_Patterns.txt</b></td><td>Same Kaggle dataset</td><td class="num">324 KB · 370 schemes</td><td>Step 1 → 2</td><td>Typology label for 62% of laundering rows</td></tr>
+            <tr><td><b>Daily FX rates</b></td><td><a href="https://api.frankfurter.dev/v1/2022-09-01?base=USD" target="_blank" rel="noopener">Frankfurter API</a> (ECB reference rates, no key)</td><td class="num">≈ 18 days × 30 currencies</td><td>Step 3</td><td>USD amounts, so channels and schemes compare fairly</td></tr>
+            <tr><td><b>FX gaps</b></td><td>SAR peg 3.75; RUB from <a href="https://www.cbr.ru/eng/currency_base/daily/" target="_blank" rel="noopener">Bank of Russia</a>; BTC from <a href="https://www.coingecko.com/en/coins/bitcoin/historical_data" target="_blank" rel="noopener">CoinGecko</a></td><td class="num">≈ 54 rows</td><td>Step 3</td><td>Currencies the ECB does not publish</td></tr>
+            <tr><td><b>Country risk score</b></td><td><a href="https://index.baselgovernance.org/ranking" target="_blank" rel="noopener">Basel AML Index</a> public edition (free account)</td><td class="num">15 rows we use</td><td>Step 3</td><td>Tests whether high-risk-country currencies launder more</td></tr>
+            <tr><td><b>Currency lookup</b></td><td>We write it</td><td class="num">15 rows</td><td>Step 3</td><td>Maps "US Dollar" → USD → United States → risk score</td></tr>
+            <tr><td><b>AML XGBoost notebook</b></td><td>Ours (<code>aml_xgboost.ipynb</code>)</td><td class="num">method</td><td>Step 6</td><td>Model settings, training and evaluation code</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="block">
+        <div class="head"><span class="eyebrow">Storage</span><h3>S3 folder layout (one bucket)</h3></div>
+<pre>s3://aml-bq2-&lt;team&gt;/
+  raw/trans/HI-Small_Trans.csv
+  raw/patterns/HI-Small_Patterns.txt
+  reference/fx/fx_rates.csv
+  reference/currency/currency_lookup.csv
+  curated/patterns/patterns.csv
+  curated/transactions/txn_date=2022-09-01/…parquet
+  curated/accounts/…parquet
+  marts/channel_lift/  marts/currency_risk/
+  marts/bank_concentration/  marts/corridors/
+  marts/amount_hour/  marts/typology_profile/
+  marts/model/…
+  site/index.html   site/data/*.json
+  athena-results/   <span class="c"># expire after 7 days</span></pre>
+        <p class="muted" style="font-size:13.5px">Each Athena table points at a folder, so every file gets its own folder.</p>
+        <div class="note"><b>Parquet</b> is a file format that stores a table column by column and compresses it. A query that needs 3 of 20 columns reads only those 3, so Athena scans (and bills) far less than with CSV.<br><b>Partition</b> means splitting the table into one folder per date (<code>txn_date=2022-09-01/</code> and so on). A query filtered to certain dates only opens those folders.</div>
+      </div>
+      <div class="block">
+        <div class="head"><span class="eyebrow">Shared contract</span><h3>Columns in <code>curated_transactions</code></h3></div>
+        <div class="tbl">
+          <table>
+            <tbody>
+              <tr><td><code>ts</code>, <code>txn_hour</code>, <code>txn_date</code></td><td>time (date is the partition)</td></tr>
+              <tr><td><code>from_bank</code>, <code>from_account</code>, <code>to_bank</code>, <code>to_account</code></td><td>kept as text: bank IDs have leading zeros</td></tr>
+              <tr><td><code>payment_format</code>, <code>payment_currency</code>, <code>receiving_currency</code></td><td>channel and currencies</td></tr>
+              <tr><td><code>amount_paid</code>, <code>amount_paid_usd</code></td><td>original and USD</td></tr>
+              <tr><td><code>is_cross_bank</code>, <code>is_cross_currency</code>, <code>amount_band_usd</code></td><td>flags for lift tables</td></tr>
+              <tr><td><code>is_laundering</code>, <code>pattern</code>, <code>attempt_id</code></td><td>label; pattern is a typology, UNSTRUCTURED or NONE</td></tr>
+              <tr><td><code>country</code>, <code>basel_score</code>, <code>in_tail</code></td><td>risk join; in_tail = after 10 Sep</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted" style="font-size:13.5px">Agree these names on day one so everyone codes against the same table.</p>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">Results</span><h2>The seven BQ2 result tables and the chart each one feeds</h2></div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Mart</th><th>Question it answers</th><th>Dashboard chart</th></tr></thead>
+          <tbody>
+            <tr><td><code>channel_lift</code></td><td>Which payment formats carry more than their share of laundering, by count and USD?</td><td>Paired bars (as on the Overview tab)</td></tr>
+            <tr><td><code>currency_risk</code></td><td>Which currencies over-carry laundering, and does it line up with the country's Basel score?</td><td>Bars of lift with the Basel score beside each</td></tr>
+            <tr><td><code>bank_concentration</code></td><td>How few banks hold most of the laundering?</td><td>Cumulative curve: % of banks vs % of laundering</td></tr>
+            <tr><td><code>corridors</code></td><td>Which bank-to-bank routes and currency pairs carry the most laundering USD?</td><td>Top-20 route table</td></tr>
+            <tr><td><code>amount_hour</code></td><td>Which USD amount bands and hours of day are riskiest?</td><td>Heat map: amount band × hour</td></tr>
+            <tr><td><code>typology_profile</code></td><td>For each scheme: count, hops, accounts, hours from first to last hop, USD per hop, channel mix</td><td>Eight small cards, one per scheme</td></tr>
+            <tr><td><code>model/*</code></td><td>What drives laundering, which schemes are missed, and risk-weighted exposure</td><td>Driver bars; detection-rate bars; exposure by channel</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <details>
+        <summary>Show the key SQL (table definition, clean-and-enrich, one mart)</summary>
+        <div class="inner">
+<pre><span class="c">-- Step 4a · point Athena at the raw CSV (hand-written DDL, so no Glue crawler cost)</span>
+CREATE EXTERNAL TABLE raw_trans (
+  ts string, from_bank string, from_account string, to_bank string, to_account string,
+  amount_received double, receiving_currency string, amount_paid double,
+  payment_currency string, payment_format string, is_laundering int)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+LOCATION 's3://aml-bq2-&lt;team&gt;/raw/trans/'
+TBLPROPERTIES ('skip.header.line.count'='1');</pre>
+<pre><span class="c">-- Step 4b · clean, convert to USD, attach scheme labels, write Parquet by date</span>
+CREATE TABLE curated_transactions
+WITH (format = 'PARQUET', write_compression = 'SNAPPY',
+      external_location = 's3://aml-bq2-&lt;team&gt;/curated/transactions/',
+      partitioned_by = ARRAY['txn_date']) AS
+WITH t AS (SELECT DISTINCT * FROM raw_trans)
+SELECT
+  date_parse(t.ts, '%Y/%m/%d %H:%i')                        AS ts,
+  hour(date_parse(t.ts, '%Y/%m/%d %H:%i'))                  AS txn_hour,
+  t.from_bank, t.from_account, t.to_bank, t.to_account,
+  t.payment_format, t.payment_currency, t.receiving_currency,
+  t.amount_paid,
+  t.amount_paid / fx.units_per_usd                          AS amount_paid_usd,
+  t.is_laundering,
+  IF(t.from_bank &lt;&gt; t.to_bank, 1, 0)                        AS is_cross_bank,
+  IF(t.payment_currency &lt;&gt; t.receiving_currency, 1, 0)      AS is_cross_currency,
+  COALESCE(p.pattern, IF(t.is_laundering = 1, 'UNSTRUCTURED', 'NONE')) AS pattern,
+  p.attempt_id, cl.country, cl.basel_score,
+  date_format(date_parse(t.ts, '%Y/%m/%d %H:%i'), '%Y-%m-%d') AS txn_date
+FROM t
+JOIN currency_lookup cl ON cl.currency_name = t.payment_currency
+JOIN fx_rates fx        ON fx.iso_code = cl.iso_code
+                       AND fx.rate_date = substr(t.ts, 1, 10)
+LEFT JOIN patterns p    ON p.ts = t.ts AND p.from_account = t.from_account
+                       AND p.to_account = t.to_account AND p.amount_paid = t.amount_paid;
+<span class="c">-- fx_rates.rate_date is stored as 'YYYY/MM/DD' text to match the raw timestamp prefix</span></pre>
+<pre><span class="c">-- Step 5 · one mart: lift by payment format (laundering share ÷ transfer share)</span>
+CREATE TABLE mart_channel_lift
+WITH (format = 'PARQUET', external_location = 's3://aml-bq2-&lt;team&gt;/marts/channel_lift/') AS
+SELECT payment_format,
+       count(*)                                              AS txns,
+       sum(is_laundering)                                    AS laundering_txns,
+       sum(amount_paid_usd) FILTER (WHERE is_laundering = 1) AS laundering_usd,
+       (sum(is_laundering) * 1.0 / sum(sum(is_laundering)) OVER ())
+         / (count(*) * 1.0 / sum(count(*)) OVER ())          AS lift
+FROM curated_transactions
+WHERE txn_date &lt;= '2022-09-10'
+GROUP BY payment_format;</pre>
+        </div>
+      </details>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">Step 6 in detail</span><h2>The XGBoost analysis, from our first run to the AWS version</h2></div>
+      <div class="two">
+        <div class="card">
+          <h3>What goes in</h3>
+          <ul class="clean">
+            <li><b>Rows:</b> <code>curated_transactions</code> for 1–10 Sep, joined to <code>curated_accounts</code>.</li>
+            <li><b>About 21 features:</b> payment format, currency, USD amount and its log, hour, weekday, night and weekend flags, round-amount and just-under-10,000 flags, cross-bank, cross-currency, self-transfer, sender fan-out degree, receiver fan-in degree, same-day sender and receiver counts, pass-through ratio.</li>
+            <li><b>Never as inputs:</b> <code>is_laundering</code>, <code>pattern</code>, <code>attempt_id</code>. The pattern is only used afterwards to group results.</li>
+            <li><b>Split by time:</b> train 1–7 Sep (3,731,669 rows, 3,027 laundering), test 8–10 Sep. A random split would leak account behaviour from the future.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Settings and outputs</h3>
+          <ul class="clean">
+            <li><b>Model settings:</b> <code>scale_pos_weight = negatives ÷ positives</code> (≈ 1,232 here), shallow trees, <code>eval_metric='aucpr'</code>, <code>tree_method='hist'</code>. Tune on PR-AUC, not recall.</li>
+            <li><b>Outputs to <code>marts/model/</code>:</b> feature importance, SHAP summary, detection rate per scheme at a 0.5% alert budget, summed risk score per channel, currency and bank.</li>
+            <li><b>Baseline to beat:</b> F1 0.34, PR-AUC 0.31. The dataset authors report F1 0.63 with graph features, so adding fan-in / fan-out and scheme-shape counts is the main lever.</li>
+            <li><b>Where it runs:</b> your own Jupyter notebook. <code>aws s3 sync s3://aml-bq2-&lt;team&gt;/curated/ ./curated/</code> pulls the data down, <code>pip install xgboost shap pyarrow</code> covers the libraries, and <code>pd.read_parquet("curated/transactions")</code> reads every date folder at once. Loading 5 million rows needs about 3 GB of RAM. When done, <code>aws s3 cp</code> the output CSVs to <code>marts/model/</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="two">
+      <div class="block">
+        <div class="head"><span class="eyebrow">Cost</span><h3>About US$3 of the US$250 budget</h3></div>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Service</th><th>Usage we expect</th><th class="num">US$</th></tr></thead>
+            <tbody>
+              <tr><td>S3</td><td>≈ 3 GB for two months</td><td class="num">&lt; 0.20</td></tr>
+              <tr><td>Lambda</td><td>a few hundred runs</td><td class="num">0 (free tier)</td></tr>
+              <tr><td><a href="https://aws.amazon.com/athena/pricing/" target="_blank" rel="noopener">Athena</a></td><td>$5 per TB scanned; ≈ 20 full CSV scans + hundreds of small Parquet queries</td><td class="num">&lt; 1</td></tr>
+              <tr><td>XGBoost</td><td>Jupyter on our own laptop</td><td class="num">0</td></tr>
+              <tr><td>Apache Airflow</td><td>Docker on our own laptop</td><td class="num">0</td></tr>
+              <tr><td>Claude agent</td><td>one short call per replayed slice (≈ 240 for a full replay), small Claude model</td><td class="num">≈ 1–2</td></tr>
+              <tr><td><b>Total</b></td><td>set an AWS Budgets alarm at $20 on day one</td><td class="num"><b>≈ 3</b></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="block">
+        <div class="head"><span class="eyebrow">Kept simple on purpose</span><h3>What we dropped and why</h3></div>
+        <ul class="clean">
+          <li><b>Glue ETL job:</b> <a href="https://aws.amazon.com/glue/pricing/" target="_blank" rel="noopener">$0.44 per DPU-hour</a> and a Spark script to debug. Athena CTAS does the same clean-up for about a cent. If the course insists on Spark, step 4 swaps to a Glue job running the same logic.</li>
+          <li><b>Glue crawler:</b> replaced by the hand-written <code>CREATE TABLE</code> above.</li>
+          <li><b>EMR cluster:</b> pays by the hour even when idle; our data fits Athena comfortably.</li>
+          <li><b>Redshift, RDS, QuickSight:</b> excluded by the brief.</li>
+          <li><b>Managed Airflow (MWAA):</b> <a href="https://aws.amazon.com/managed-workflows-for-apache-airflow/pricing/" target="_blank" rel="noopener">about $0.49 an hour</a> for the smallest environment, roughly $350 a month. The same Airflow runs free in Docker on a laptop.</li>
+          <li><b>Managed Grafana:</b> needs IAM Identity Center, which shared course accounts often block, and costs $9 per editor after the trial. A static Plotly page on S3 costs nothing.</li>
+        </ul>
+        <p class="note">If the course account blocks public S3 websites, run <code>aws s3 sync s3://…/site ./site</code> and open <code>index.html</code> locally; the charts read the JSON beside it.</p>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">X-factors</span><h2>Three extras, each with proof we can show</h2></div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>X-factor</th><th>What we build</th><th>Evidence on the slide</th></tr></thead>
+          <tbody>
+            <tr><td><b>Automation</b></td><td>One Airflow DAG: <code>parse_patterns → fetch_fx → CTAS → marts → model → publish</code>, plus the checks on every slice.</td><td>Live demo: the DAG runs, the dashboard refreshes with nobody touching the AWS console.</td></tr>
+            <tr><td><b>Near-real-time + AI with a job</b></td><td>Hourly replay, four checks as a gate, and a Claude agent that explains each slice (Live monitoring tab).</td><td>The quarantined 11 Sep slice and the agent note that explains it.</td></tr>
+            <tr><td><b>Cost and speed</b></td><td>Run the same lift query on the raw CSV table and on the Parquet table.</td><td>Athena's own "data scanned" and run time for both (expect ≈ 476 MB vs a few MB), priced at $5 per TB.</td></tr>
+            <tr><td><b>External data that changes the answer</b></td><td>USD conversion and Basel country scores.</td><td>The channel and scheme rankings before and after USD conversion.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============================ TAB 3 · LIVE MONITORING ============================ -->
+  <section class="panel" role="tabpanel" id="panel-monitor" aria-labelledby="tab-monitor" hidden>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">What it adds</span><h2>From a one-off report to a live feed that is checked and explained</h2></div>
+      <p class="lead" style="font-size:15.5px">The batch pipeline answers BQ2 once, for 1–10 Sep. The monitoring layer replays the same data one hour at a time, checks every slice before it can reach the dashboard, and has a Claude agent write down what changed and whether it matters. The exposure map stays current and trustworthy, and a person reads a short verdict instead of a table of test results.</p>
+
+      <figure>
+        <div class="fig-scroll">
+          <svg class="diagram" viewBox="0 0 1000 362" role="img" aria-label="Before and after. Batch only: Kaggle CSV loaded once, Athena cleans it, results go straight to marts and a static report with no checks, so errors flow through. With monitoring: a replay task sends one hour at a time, Athena cleans it, a check gate runs reconciliation, quality, drift and anomaly checks. Passed slices go to marts and the dashboard; failed slices go to a quarantine folder. All check results go to a Claude agent that explains and rates the slice and adds a note to the dashboard, emailing if severity is high.">
+            <defs>
+              <marker id="mh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--ink-2)"/></marker>
+              <marker id="mhs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--signal)"/></marker>
+            </defs>
+            <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="11" fill="var(--muted)" letter-spacing="0.5">
+              <text x="20" y="24">BATCH ONLY</text>
+              <text x="20" y="152">WITH MONITORING · NEW PARTS IN ORANGE</text>
+            </g>
+            <line x1="20" y1="126" x2="980" y2="126" stroke="var(--rule)" stroke-width="1"/>
+
+            <!-- row A boxes -->
+            <g fill="var(--surface)" stroke="var(--ink-2)" stroke-width="1.2">
+              <rect x="20" y="40" width="140" height="56" rx="6"/>
+              <rect x="210" y="40" width="140" height="56" rx="6"/>
+              <rect x="620" y="40" width="140" height="56" rx="6"/>
+              <rect x="820" y="40" width="160" height="56" rx="6"/>
+            </g>
+            <!-- row B unchanged boxes -->
+            <g fill="var(--surface)" stroke="var(--ink-2)" stroke-width="1.2">
+              <rect x="210" y="172" width="140" height="56" rx="6"/>
+              <rect x="620" y="172" width="140" height="56" rx="6"/>
+              <rect x="820" y="172" width="160" height="56" rx="6"/>
+            </g>
+            <!-- row B new boxes -->
+            <g fill="var(--signal-soft)" stroke="var(--signal)" stroke-width="1.6">
+              <rect x="20" y="172" width="140" height="56" rx="6"/>
+              <rect x="390" y="165" width="180" height="70" rx="6"/>
+              <rect x="390" y="285" width="130" height="50" rx="6"/>
+              <rect x="620" y="285" width="160" height="50" rx="6"/>
+            </g>
+
+            <!-- arrows -->
+            <g stroke="var(--ink-2)" stroke-width="1.5" fill="none" marker-end="url(#mh)">
+              <line x1="160" y1="68" x2="206" y2="68"/>
+              <line x1="760" y1="68" x2="816" y2="68"/>
+              <line x1="160" y1="200" x2="206" y2="200"/>
+              <line x1="350" y1="200" x2="386" y2="200"/>
+              <line x1="570" y1="200" x2="616" y2="200"/>
+              <line x1="760" y1="200" x2="816" y2="200"/>
+            </g>
+            <line x1="350" y1="68" x2="616" y2="68" stroke="var(--signal)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mhs)"/>
+            <g stroke="var(--signal)" stroke-width="1.5" fill="none" marker-end="url(#mhs)">
+              <line x1="440" y1="235" x2="440" y2="281"/>
+              <polyline points="540,235 540,258 700,258 700,281"/>
+              <polyline points="780,310 900,310 900,234"/>
+            </g>
+
+            <!-- labels -->
+            <g text-anchor="middle" font-size="13" font-weight="600" fill="var(--ink)">
+              <text x="90" y="64">Kaggle CSV</text><text x="280" y="64">Athena</text><text x="690" y="64">marts/</text><text x="900" y="64">Dashboard</text>
+              <text x="90" y="196">Replay</text><text x="280" y="196">Athena</text><text x="480" y="190">Check gate</text><text x="690" y="196">marts/</text><text x="900" y="196">Dashboard</text>
+              <text x="455" y="306">quarantine/</text><text x="700" y="306">Claude agent</text>
+            </g>
+            <g text-anchor="middle" font-size="11.5" fill="var(--ink-2)">
+              <text x="90" y="82">loaded once</text><text x="280" y="82">clean + USD</text><text x="690" y="82">whatever arrives</text><text x="900" y="82">one static report</text>
+              <text x="90" y="214">one hour per run</text><text x="280" y="214">clean + USD</text><text x="480" y="208">recon · quality</text><text x="480" y="224">drift · anomaly</text><text x="690" y="214">passed slices only</text><text x="900" y="214">+ alerts + AI note</text>
+              <text x="455" y="323">held back</text><text x="700" y="323">explains + rates</text>
+            </g>
+            <g font-size="11.5" fill="var(--signal)" font-weight="600">
+              <text x="483" y="60" text-anchor="middle">no checks: errors flow straight through</text>
+              <text x="593" y="192" text-anchor="middle">pass</text>
+              <text x="447" y="264">fail</text>
+              <text x="560" y="252">all results</text>
+              <text x="908" y="276">AI note</text>
+            </g>
+            <text x="700" y="352" text-anchor="middle" font-size="11" fill="var(--muted)">emails the team if severity is high</text>
+          </svg>
+        </div>
+        <figcaption>Both rows use the same Athena clean-up and the same marts. What changes is the orange part: data arrives in slices, a gate of four checks decides what gets through, and the agent turns the check results into a short note on the dashboard.</figcaption>
+      </figure>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">Why it matters</span><h2>Three problems it would catch in our own data</h2></div>
+      <p class="muted" style="max-width:82ch">These are measured on HI-Small, not made up. Each one would quietly distort the BQ2 answer if the pipeline ran without checks.</p>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>Check</th><th>What is in the data</th><th>Without the check</th><th>With the check and the agent</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="tag">Reconciliation</span></td>
+              <td>The ECB publishes no FX rates at weekends. The three weekend days (3, 4 and 10 Sep) hold 12% of transfers but <b>27% of laundering</b> (1,240 of 4,522).</td>
+              <td>A plain join to FX silently drops those 623,137 rows. ACH and Saudi Riyal look less risky than they are, and nobody notices.</td>
+              <td>Rows and dollars in ≠ rows and dollars out, so the run stops. The agent's note names the cause: all missing rows fall on Saturday or Sunday.</td>
+            </tr>
+            <tr>
+              <td><span class="tag">Drift, expected</span></td>
+              <td>On 1 Sep, 43% of transfers are Reinvestment and 344,208 land at midnight. On every other day Reinvestment is 0%. Payment-format PSI is 3.9 against a normal weekday.</td>
+              <td>A fixed threshold fires every month-start. People soon learn to ignore the alerts.</td>
+              <td>The drift check flags it; the agent looks at which category moved and when, and rates it low: a month-start batch, not new behaviour.</td>
+            </tr>
+            <tr>
+              <td><span class="tag hot">Anomaly, real</span></td>
+              <td>From 11 Sep every transfer is ACH and <b>57–73% are laundering</b>, against 0.10% normally. Volume falls from about 482,000 a weekday to a few hundred. Payment-format PSI is 8.8.</td>
+              <td>The dashboard shows ACH laundering exploding, and a model trained on it learns that late September means laundering.</td>
+              <td>The slice is quarantined and kept out of the marts and model training. The agent explains it as the simulator's leftover laundering hops.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">The second row is where the AI earns its place. A threshold only knows that a number is large; the agent reads the context (which category, what time, what day of the month) and separates a routine event from a real shift. That is the judgment a human analyst would otherwise make by hand for every alert.</p>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">The DAG</span><h2>What Airflow runs for every replayed slice</h2></div>
+      <figure>
+        <div class="fig-scroll">
+          <svg class="diagram" viewBox="0 0 1000 240" role="img" aria-label="Airflow DAG. replay_slice then load_slice, then four checks in parallel: check_recon, check_quality, check_drift, score_and_anomaly. All four feed a gate. On pass the gate runs build_marts then publish. The gate always runs agent_triage, which adds its note to publish and runs send_alert if severity is high. On fail the slice goes to quarantine.">
+            <defs>
+              <marker id="dh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--ink-2)"/></marker>
+            </defs>
+            <g stroke="var(--ink-2)" stroke-width="1.4" fill="none" marker-end="url(#dh)">
+              <line x1="130" y1="125" x2="156" y2="125"/>
+              <line x1="280" y1="125" x2="316" y2="36"/>
+              <line x1="280" y1="125" x2="316" y2="90"/>
+              <line x1="280" y1="125" x2="316" y2="144"/>
+              <line x1="280" y1="125" x2="316" y2="198"/>
+              <line x1="470" y1="36" x2="506" y2="112"/>
+              <line x1="470" y1="90" x2="506" y2="115"/>
+              <line x1="470" y1="144" x2="506" y2="120"/>
+              <line x1="470" y1="198" x2="506" y2="123"/>
+              <line x1="630" y1="108" x2="676" y2="66"/>
+              <line x1="630" y1="126" x2="676" y2="168"/>
+              <line x1="820" y1="62" x2="856" y2="62"/>
+              <line x1="820" y1="162" x2="856" y2="78"/>
+              <line x1="820" y1="178" x2="856" y2="178"/>
+            </g>
+            <g fill="var(--surface)" stroke="var(--ink-2)" stroke-width="1.2">
+              <rect x="10" y="103" width="120" height="44" rx="6"/>
+              <rect x="160" y="103" width="120" height="44" rx="6"/>
+              <rect x="680" y="40" width="140" height="44" rx="6"/>
+              <rect x="860" y="40" width="130" height="44" rx="6"/>
+            </g>
+            <g fill="var(--signal-soft)" stroke="var(--signal)" stroke-width="1.4">
+              <rect x="320" y="18" width="150" height="36" rx="6"/>
+              <rect x="320" y="72" width="150" height="36" rx="6"/>
+              <rect x="320" y="126" width="150" height="36" rx="6"/>
+              <rect x="320" y="180" width="150" height="36" rx="6"/>
+              <rect x="510" y="95" width="120" height="44" rx="6"/>
+              <rect x="680" y="150" width="140" height="44" rx="6"/>
+              <rect x="860" y="156" width="130" height="44" rx="6"/>
+            </g>
+            <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="12" fill="var(--ink)" text-anchor="middle">
+              <text x="70" y="129">replay_slice</text>
+              <text x="220" y="129">load_slice</text>
+              <text x="395" y="40">check_recon</text>
+              <text x="395" y="94">check_quality</text>
+              <text x="395" y="148">check_drift</text>
+              <text x="395" y="202">score + anomaly</text>
+              <text x="570" y="121">gate</text>
+              <text x="750" y="66">build_marts</text>
+              <text x="925" y="66">publish</text>
+              <text x="750" y="176">agent_triage</text>
+              <text x="925" y="182">send_alert</text>
+            </g>
+            <g font-size="11" fill="var(--muted)">
+              <text x="624" y="86">pass</text>
+              <text x="614" y="160">always</text>
+              <text x="846" y="124">note</text>
+              <text x="823" y="193" font-size="10.5">if high</text>
+              <text x="566" y="178" text-anchor="middle">fail → quarantine/</text>
+            </g>
+          </svg>
+        </div>
+        <figcaption>Orange tasks are new. The four checks run side by side. The gate is plain code (an Airflow branch), so pass or fail never depends on the AI; the agent runs either way and explains the result.</figcaption>
+      </figure>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">What people see</span><h2>The live monitor for one slice</h2></div>
+      <div class="card monitor">
+        <div class="mon-head">
+          <div><span class="eyebrow">Slice</span><h3>11 Sep 2022 · all 396 transfers</h3></div>
+          <span class="chip bad"><span aria-hidden="true">■</span> Quarantined</span>
+        </div>
+        <div class="chips" role="list">
+          <span class="chip good" role="listitem"><span aria-hidden="true">✓</span> Recon · pass</span>
+          <span class="chip good" role="listitem"><span aria-hidden="true">✓</span> Quality · pass</span>
+          <span class="chip bad" role="listitem"><span aria-hidden="true">✕</span> Drift · format PSI 8.8</span>
+          <span class="chip bad" role="listitem"><span aria-hidden="true">✕</span> Anomaly · 58.6% laundering</span>
+        </div>
+        <div class="agent-note">
+          <div class="eyebrow">AI analyst note · Claude · example of the format</div>
+          <p><b>Severity: high. Verdict: data issue, not new behaviour.</b> This slice is 100% ACH and 58.6% labelled laundering, against 0.10% on normal days, with 396 transfers instead of about 482,000. It matches the leftover hops of laundering schemes that started before 11 Sep. It has been kept out of the exposure charts and model training. Suggested action: none for risk teams; data team to confirm the 10 Sep cut-off.</p>
+        </div>
+      </div>
+      <p class="muted" style="font-size:13.5px">The check numbers are real for this slice. We wrote the note text to show what the agent should produce; the real one is generated on each run.</p>
+    </div>
+
+    <div class="two">
+      <div class="block">
+        <div class="head"><span class="eyebrow">The four checks</span><h3>What each one compares</h3></div>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>Check</th><th>Compares</th><th>Fails when</th></tr></thead>
+            <tbody>
+              <tr><td><b>Recon</b></td><td>Row count, total <code>amount_paid</code> and laundering count: raw slice vs curated slice</td><td>Any gap beyond the known duplicates</td></tr>
+              <tr><td><b>Quality</b></td><td>No nulls in key columns; only the 15 currencies and 7 formats; amount above 0; timestamp inside the slice; every row has a USD amount</td><td>Any rule broken</td></tr>
+              <tr><td><b>Drift</b></td><td>PSI of format mix, currency mix, USD amount bands and model-score bands against the same hour on normal weekdays (2–9 Sep)</td><td>PSI above 0.25 (0.1–0.25 = warning)</td></tr>
+              <tr><td><b>Anomaly</b></td><td>XGBoost scores for the slice; each bank's and channel's share of the top 0.5%; slice volume against the same hour's baseline</td><td>More than 3 standard deviations from baseline</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="block">
+        <div class="head"><span class="eyebrow">The agent</span><h3>LangChain + Claude, kept on a short leash</h3></div>
+        <ul class="clean">
+          <li><b>Runs as:</b> an Airflow Python task using LangChain with Claude, via Amazon Bedrock if the course account allows it, otherwise the Anthropic API.</li>
+          <li><b>Reads:</b> the slice's check results (numbers only).</li>
+          <li><b>Tools:</b> <code>run_saved_query</code> (five fixed, read-only Athena queries), <code>get_baseline</code>, <code>get_top_alerts</code>. At most three tool calls per slice.</li>
+          <li><b>Writes:</b> structured JSON with severity, verdict (expected / investigate / data issue), a three-sentence summary, the numbers it used, and a suggested action.</li>
+          <li><b>Guardrails:</b> no free-form SQL, no writes, a token cap per call, and a check that every number in the note appears in a tool result. The gate is decided by code, never by the agent.</li>
+        </ul>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============================ TAB 4 · WORK SPLIT ============================ -->
+  <section class="panel" role="tabpanel" id="panel-team" aria-labelledby="tab-team" hidden>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">Work split</span><h2>Three lanes that can all start today, joined by four handoffs</h2></div>
+      <p class="lead" style="font-size:15.5px">Owen owns the data platform and everything in S3. Neeharika owns the BQ2 analysis and the dashboard. Qiaoye owns the XGBoost analysis, the Airflow automation and the Live monitoring + AI layer. Phase 1 needs nothing from anyone else because both analysts work on the local output of <code>profile_aml.py</code> while Owen builds AWS.</p>
+
+      <figure>
+        <div class="fig-scroll">
+          <svg class="lanes" viewBox="0 0 1000 340" role="img" aria-label="Swimlane plan. Neeharika: currency lookup and mart SQL in DuckDB in phase 1, marts in Athena in phase 2, publish and dashboard in phase 3. Owen: S3 bucket and upload, Lambdas in phase 1, Athena DDL and CTAS in phase 2, site hosting and cost test in phase 3. Qiaoye: XGBoost locally in phase 1, XGBoost on the real curated Parquet in phase 2, Airflow DAG with live checks and the AI agent in phase 3. Handoffs: B0 lookup CSV from Neeharika to Owen's CTAS; B1 curated table from Owen to Neeharika's marts and Qiaoye's Jupyter run; B2 model marts from Qiaoye to Neeharika's dashboard; B3 final SQL and Lambdas from Owen and Neeharika to Qiaoye's Airflow DAG.">
+            <defs>
+              <marker id="bh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--signal)"/></marker>
+            </defs>
+            <!-- phase headers -->
+            <g font-family="IBM Plex Mono, ui-monospace, monospace" font-size="11" fill="var(--muted)" letter-spacing="0.5">
+              <text x="120" y="24">PHASE 1 · PARALLEL, START NOW</text>
+              <text x="470" y="24">PHASE 2 · INTEGRATE</text>
+              <text x="730" y="24">PHASE 3 · AUTOMATE + PUBLISH</text>
+            </g>
+            <!-- lane bands -->
+            <g fill="var(--lane)">
+              <rect x="0" y="40" width="1000" height="66"/>
+              <rect x="0" y="140" width="1000" height="66"/>
+              <rect x="0" y="240" width="1000" height="66"/>
+            </g>
+            <g stroke="var(--rule)" stroke-width="1">
+              <line x1="452" y1="12" x2="452" y2="310"/><line x1="712" y1="12" x2="712" y2="310"/>
+            </g>
+            <!-- lane labels -->
+            <g font-size="13" font-weight="600" fill="var(--ink)">
+              <text x="10" y="69">Neeharika</text><text x="10" y="169">Owen</text><text x="10" y="269">Qiaoye</text>
+            </g>
+            <g font-size="11" fill="var(--muted)">
+              <text x="10" y="85">analysis + dashboard</text><text x="10" y="185">data platform + S3</text><text x="10" y="285">model + automation</text>
+            </g>
+            <!-- task boxes -->
+            <g fill="var(--surface)" stroke="var(--ink-2)" stroke-width="1.2">
+              <rect x="120" y="50" width="140" height="46" rx="6"/>
+              <rect x="275" y="50" width="160" height="46" rx="6"/>
+              <rect x="470" y="50" width="150" height="46" rx="6"/>
+              <rect x="730" y="50" width="160" height="46" rx="6"/>
+              <rect x="120" y="150" width="140" height="46" rx="6"/>
+              <rect x="275" y="150" width="160" height="46" rx="6"/>
+              <rect x="470" y="150" width="150" height="46" rx="6"/>
+              <rect x="730" y="150" width="160" height="46" rx="6"/>
+              <rect x="120" y="250" width="315" height="46" rx="6"/>
+              <rect x="470" y="250" width="150" height="46" rx="6"/>
+              <rect x="730" y="250" width="160" height="46" rx="6"/>
+            </g>
+            <g text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">
+              <text x="190" y="70">Currency + risk</text>
+              <text x="355" y="70">Mart SQL</text>
+              <text x="545" y="70">Marts in Athena</text>
+              <text x="810" y="70">Publish + dashboard</text>
+              <text x="190" y="170">S3 bucket, IAM</text>
+              <text x="355" y="170">Lambdas</text>
+              <text x="545" y="170">Athena DDL + CTAS</text>
+              <text x="810" y="170">Site + cost test</text>
+              <text x="277" y="270">XGBoost locally</text>
+              <text x="545" y="270">XGBoost on</text>
+              <text x="810" y="270">Airflow DAG</text>
+            </g>
+            <g text-anchor="middle" font-size="11" fill="var(--ink-2)">
+              <text x="190" y="86">lookup CSV</text>
+              <text x="355" y="86">prototyped in DuckDB</text>
+              <text x="545" y="86">7 BQ2 tables</text>
+              <text x="810" y="86">Plotly page on S3</text>
+              <text x="190" y="186">+ raw upload</text>
+              <text x="355" y="186">parse_patterns, fetch_fx</text>
+              <text x="545" y="186">curated Parquet</text>
+              <text x="810" y="186">CSV vs Parquet</text>
+              <text x="277" y="286">drivers + scheme detection rates</text>
+              <text x="545" y="286">curated Parquet</text>
+              <text x="810" y="286">live checks + AI agent</text>
+            </g>
+
+            <!-- handoff arrows -->
+            <g style="color:var(--signal)" stroke="currentColor" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#bh)">
+              <polyline points="190,96 190,123 500,123 500,146"/>
+              <line x1="575" y1="150" x2="575" y2="100"/>
+              <line x1="545" y1="196" x2="545" y2="246"/>
+              <polyline points="545,296 545,322 915,322 915,73 894,73"/>
+              <polyline points="600,196 600,223 800,223 800,246"/>
+              <polyline points="620,73 700,73 700,223"/>
+            </g>
+            <circle cx="700" cy="223" r="3.5" fill="var(--signal)"/>
+            <g font-size="11" font-weight="600" fill="var(--signal)">
+              <text x="300" y="117">B0 lookup CSV</text>
+              <text x="582" y="130">B1 curated</text>
+              <text x="552" y="230">B1</text>
+              <text x="708" y="216">B3 final SQL + Lambdas</text>
+              <text x="922" y="190">B2 model</text>
+              <text x="922" y="204">marts</text>
+            </g>
+          </svg>
+        </div>
+        <figcaption>Dashed orange arrows are handoffs: the receiving task cannot finish until that input arrives. Phase 4 (slides and rehearsal) is shared by all three and starts once the dashboard shows real data.</figcaption>
+      </figure>
+    </div>
+
+    <div class="people">
+      <div class="card person">
+        <h3>Owen <small>DATA PLATFORM · S3</small></h3>
+        <p class="cost-line">Predicted cost: <b>≈ US$0.50</b> · S3 storage &lt; $0.20, Athena load + CSV-vs-Parquet test ≈ $0.30, Lambdas $0 (free tier)</p>
+        <div class="phase"><span class="ph">Phase 1 · start now</span><ul>
+          <li>Create the bucket, the folder layout and IAM roles; set the $20 budget alarm</li>
+          <li>Upload <code>raw/trans/</code> and <code>raw/patterns/</code></li>
+          <li>Write and test <code>parse_patterns</code> and <code>fetch_fx</code> Lambdas</li>
+          <li>Publish the <code>curated_transactions</code> column list to the team</li>
+        </ul></div>
+        <div class="phase"><span class="ph">Phase 2 · after B0</span><ul>
+          <li>Athena DDL for raw, FX, currency and pattern tables</li>
+          <li>CTAS for <code>curated/transactions/</code> and <code>curated/accounts/</code> → hand off <b>B1</b></li>
+        </ul></div>
+        <div class="phase"><span class="ph">Phase 3</span><ul>
+          <li>S3 static site hosting (or the local fallback)</li>
+          <li>CSV vs Parquet cost-and-speed test for the X-factor slide</li>
+        </ul></div>
+      </div>
+
+      <div class="card person">
+        <h3>Neeharika <small>BQ2 ANALYSIS · DASHBOARD</small></h3>
+        <p class="cost-line">Predicted cost: <b>≈ US$0.50</b> · Athena mart queries ≈ $0.50, publish Lambda and S3 site $0, DuckDB on a laptop $0</p>
+        <div class="phase"><span class="ph">Phase 1 · start now</span><ul>
+          <li>Build <code>currency_lookup.csv</code>: 15 currencies → ISO code, country, Basel score → hand off <b>B0</b> by day 2</li>
+          <li>Write the seven mart queries in DuckDB against the local <code>profile_aml.py</code> output</li>
+          <li>Sketch the dashboard layout, one chart per mart</li>
+        </ul></div>
+        <div class="phase"><span class="ph">Phase 2 · after B1</span><ul>
+          <li>Port the mart queries to Athena CTAS in <code>marts/</code></li>
+          <li>Check results against the local numbers (e.g. ACH 86.6%)</li>
+        </ul></div>
+        <div class="phase"><span class="ph">Phase 3 · after B2</span><ul>
+          <li><code>publish</code> Lambda and <code>site/index.html</code> with Plotly charts</li>
+          <li>Write the one-paragraph finding for each chart</li>
+        </ul></div>
+      </div>
+
+      <div class="card person">
+        <h3>Qiaoye <small>XGBOOST · AIRFLOW · AI AGENT</small></h3>
+        <p class="cost-line">Predicted cost: <b>≈ US$2</b> · Claude agent ≈ $1–2, Athena queries for replay slices and checks ≈ $0.20, Jupyter and Airflow on a laptop $0</p>
+        <div class="phase"><span class="ph">Phase 1 · start now</span><ul>
+          <li>Point <code>aml_xgboost.ipynb</code> at the local HI-Small output; time split; beat F1 0.34</li>
+          <li>Feature importance, SHAP, detection rate per scheme</li>
+          <li>Make the notebook read its data path as a parameter</li>
+        </ul></div>
+        <div class="phase"><span class="ph">Phase 2 · after B1</span><ul>
+          <li>Sync <code>curated/</code> from S3 and rerun the Jupyter notebook on it</li>
+          <li>Write <code>marts/model/</code> → hand off <b>B2</b></li>
+        </ul></div>
+        <div class="phase"><span class="ph">Phase 3 · after B3</span><ul>
+          <li>Airflow in Docker; one DAG for steps 1–7 with the final code</li>
+          <li>Replay task, the four checks and the Claude agent (can be built on local files from Phase 2)</li>
+          <li>Live monitor page <code>site/monitor.html</code>; record the demo</li>
+          <li>Own the whole Live monitoring + AI layer (tab 3) end to end</li>
+        </ul></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="head"><span class="eyebrow">Handoffs</span><h2>Who waits for whom, and how to avoid waiting</h2></div>
+      <div class="tbl">
+        <table>
+          <thead><tr><th>ID</th><th>From → to</th><th>What is handed over</th><th>It blocks</th><th>How to avoid the wait</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag hot">B0</span></td><td>Neeharika → Owen</td><td><code>currency_lookup.csv</code> in <code>reference/currency/</code></td><td>The CTAS join to USD and country risk</td><td>Do it first: it is 15 rows and takes an hour.</td></tr>
+            <tr><td><span class="tag hot">B1</span></td><td>Owen → Neeharika, Qiaoye</td><td><code>curated_transactions</code> and <code>curated_accounts</code> in Athena</td><td>Marts in Athena; the Jupyter run on real curated data</td><td>Both keep working on local files; the agreed column list means their code just changes its source.</td></tr>
+            <tr><td><span class="tag hot">B2</span></td><td>Qiaoye → Neeharika</td><td><code>marts/model/</code> (drivers, detection rates, exposure)</td><td>The model charts on the dashboard</td><td>Build those charts on the local model output first.</td></tr>
+            <tr><td><span class="tag hot">B3</span></td><td>Owen, Neeharika → Qiaoye</td><td>Final Lambda code, CTAS SQL and mart SQL</td><td>The Airflow DAG</td><td>Qiaoye wires the DAG with the current versions and swaps in the final ones.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="clean">
+        <li>Keep all SQL, Lambda code and the notebook in one shared repo so the latest version is always the one Airflow runs.</li>
+        <li>Short check-in at the end of each phase: every handoff marked done or given a new date.</li>
+        <li>Everyone presents their own lane in Phase 4.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  var names = ['overview','pipeline','monitor','team'];
+  function show(name, focus){
+    if(names.indexOf(name) < 0) name = 'overview';
+    tabs.forEach(function(t){
+      var on = t.id === 'tab-' + name;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      if(on && focus) t.focus();
+    });
+    try{ localStorage.setItem('bq2-tab', name); }catch(e){}
+  }
+  tabs.forEach(function(t, i){
+    t.addEventListener('click', function(){
+      var n = t.id.replace('tab-','');
+      show(n);
+      try{ history.replaceState(null, '', '#' + n); }catch(e){}
+      window.scrollTo({top: document.querySelector('nav.tabs').offsetTop - 4, behavior: 'auto'});
+    });
+    t.addEventListener('keydown', function(e){
+      if(e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      var j = (i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+      show(tabs[j].id.replace('tab-',''), true);
+    });
+  });
+  var start = (location.hash || '').replace('#','');
+  if(names.indexOf(start) < 0){ try{ start = localStorage.getItem('bq2-tab') || 'overview'; }catch(e){ start = 'overview'; } }
+  show(start);
+})();
+</script>
+
+</body>
+</html>
