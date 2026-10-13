@@ -54,8 +54,12 @@ Quote these exactly, and don't invent new numbers. If you measure something diff
 | Tail | 11–18 Sep is 1,108 rows, 57–73% laundering, all ACH (simulator leftovers). **Always exclude it** (`txn_date <= '2022-09-10'`). |
 | Weekends | 3, 4 and 10 Sep hold 12% of transfers but 27% of laundering (1,240 of 4,522). The ECB publishes no weekend FX, so a plain FX join drops 623,137 rows. |
 | Month start | On 1 Sep, 43% of transfers are Reinvestment and 344,208 land at midnight. Format PSI is 3.9 against a normal weekday. This is expected drift. |
-| Baseline model | Train 1–7 Sep (3,731,669 rows, 3,027 laundering), test 8–10 Sep (1,345,559 rows, 1,495 laundering). PR-AUC 0.31, F1 0.34. The top 0.5% of scores (6,728 alerts) catches 62.7% of laundering. |
-| Detection by scheme (top 0.5%) | unstructured 35.6, bipartite 58.8, stack 67.7, cycle 69.6, random 80.4, gather-scatter 82.9, fan-in 87.9, fan-out 88.3, scatter-gather 94.1 (%) |
+| Baseline model (superseded, leaky) | Train 1–7 Sep (3,731,669 rows, 3,027 laundering), test 8–10 Sep (1,345,559 rows, 1,495 laundering). PR-AUC 0.31, F1 0.34. The top 0.5% of scores (6,728 alerts) catches 62.7% of laundering. **These numbers used account features computed over all 10 days, which see the test period** (reproduced on 13 Oct: PR-AUC 0.36, 64.3%). Don't quote them as achievable; use the Experiment A/B rows below. |
+| Detection by scheme, leaky baseline (top 0.5%) | unstructured 35.6, bipartite 58.8, stack 67.7, cycle 69.6, random 80.4, gather-scatter 82.9, fan-in 87.9, fan-out 88.3, scatter-gather 94.1 (%) |
+| XGBoost Experiment A vs B (13 Oct, honest features) | Test 8–10 Sep. **A** (22 one-hop features): PR-AUC 0.170, best F1 0.256, 45.4% caught in the top 0.5%. **B** (A + 5 network features): PR-AUC 0.236, best F1 0.301, 47.9%. Source: `notebooks/aml_xgboost.ipynb`, `out/model/metrics.csv`. |
+| Detection by scheme, A → B (top 0.5%) | bipartite 51.5 → 60.3 (+8.8), gather-scatter 57.5 → 65.7 (+8.3), stack 58.4 → 66.5 (+8.1), cycle 46.7 → 54.3 (+7.6), random 57.1 → 62.5 (+5.4), fan-out 66.0 → 69.1 (+3.2), scatter-gather 60.0 → 61.8 (+1.8), unstructured 24.1 → 22.3 (−1.7), fan-in 73.6 → 70.3 (−3.3) (%). Each scheme has 56–181 test rows, so changes under about 3 points are noise. |
+| Model exposure (B scores, test) | ACH is 13.2% of test transfers but 90.6% of the summed risk score, and holds 1,299 of 1,495 test laundering rows. |
+| FX rates | The IBM simulator converts at its own **fixed** rates (e.g. 105.4 Yen, 0.8534 Euro, 77.804 Ruble, 0.0000842 Bitcoin per USD), not market rates (ECB on 1 Sep 2022: 139.28 Yen, 0.9996 Euro). With these rates, paid and received USD agree on the 72,170 cross-currency rows (median gap 0.0002%). |
 
 ## 4. The batch pipeline (End-to-end tab)
 
@@ -65,7 +69,7 @@ Seven steps, one S3 bucket, everything pay-per-use and nothing to switch off.
 |---|---|---|---|---|
 | 1 | Ingest | Laptop + `kagglehub` + AWS CLI | Kaggle → `raw/trans/`, `raw/patterns/` | $0 |
 | 2 | Parse schemes | Lambda `parse_patterns` | `raw/patterns/` → `curated/patterns/` (one row per transfer with `attempt_id`, typology) | free tier |
-| 3 | Fetch FX | Lambda `fetch_fx` (Frankfurter, ECB rates, no key) | → `reference/fx/`. Weekends take Friday's rate; SAR fixed at 3.75; RUB and BTC added by hand. `currency_lookup.csv` → `reference/currency/` | free tier |
+| 3 | FX rates | `scripts/build_fx_from_data.py` (the simulator's own fixed rates, recovered from the data; see §10.7). Lambda `fetch_fx` (Frankfurter/ECB) stays as the real-market alternative and writes to `reference/fx_ecb/`. | → `reference/fx/fx_rates.csv` (all 15 currencies × 18 days). `currency_lookup.csv` → `reference/currency/` | $0 |
 | 4 | Clean and enrich | Athena DDL + CTAS | `raw/` + `reference/` + `curated/patterns/` → `curated/transactions/` (Snappy Parquet partitioned by `txn_date`). A second CTAS builds `curated/accounts/`. | ≈ $0.01 |
 | 5 | Analyse | Athena CTAS | `curated/` → `marts/` (the seven tables in section 6) | cents |
 | 6 | Model drivers | Jupyter + XGBoost on a laptop | `aws s3 sync` of `curated/` → notebook → `marts/model/` | $0 |
@@ -95,12 +99,13 @@ Seven steps, one S3 bucket, everything pay-per-use and nothing to switch off.
 
 Set an AWS Budgets alarm at $20 on day one.
 
-### S3 layout (`s3://aml-bq2-<team>/`)
+### S3 layout (`s3://aml-bq2/`, region `ap-southeast-1`)
 
 ```
 raw/trans/HI-Small_Trans.csv
-raw/patterns/HI-Small_Patterns.txt
-reference/fx/fx_rates.csv
+raw/patterns/HI_Small_Patterns.txt      # underscore in S3; CRLF line endings
+reference/fx/fx_rates.csv               # dataset-implied rates (rate_date, iso_code, units_per_usd, source)
+reference/fx_backup/fx_rates_ecb.csv    # Owen's original ECB file, kept for reference
 reference/currency/currency_lookup.csv
 curated/patterns/patterns.csv
 curated/transactions/txn_date=2022-09-01/…parquet
@@ -132,6 +137,7 @@ Each Athena table points at its own folder.
 - `fx_rates.rate_date` is stored as `'YYYY/MM/DD'` text to match the raw timestamp prefix.
 - The curated table has **no** `amount_received`.
 - The pattern join key is `(ts, from_account, to_account, amount_paid)`.
+- `fx_rates` and `patterns` CSV column order must match the DDL in `sql/01_tables.sql` exactly. Athena maps by position, and a mismatch gives empty or shifted joins without any error.
 
 ## 6. The seven result tables (marts)
 
@@ -160,8 +166,9 @@ Each Athena table points at its own folder.
 - **Split by time:** train 1–7 Sep, test 8–10 Sep. Never split at random.
 - **Settings:** `scale_pos_weight = neg/pos` (≈ 1,232), shallow trees, `eval_metric='aucpr'`, `tree_method='hist'`. Tune on PR-AUC.
 - **Outputs to `marts/model/`:** feature importance, SHAP summary, detection rate per scheme at a 0.5% alert budget, and summed risk score per channel, currency and bank.
-- **Baseline to beat:** F1 0.34, PR-AUC 0.31. The paper reports F1 0.63 with graph features.
-- **Environment:** runs in Qiaoye's own Jupyter on a laptop, not SageMaker. It needs about 3 GB of RAM for 5 M rows.
+- **Baseline:** the old F1 0.34 / PR-AUC 0.31 is leaky (§3, §10.10). The honest reference is Experiment A: PR-AUC 0.170. The paper reports F1 0.63 with graph features.
+- **Environment:** runs in Qiaoye's own Jupyter on a laptop, not SageMaker. Kernel: `aml-bq2 (.venv)`. Run All takes 10.4 min with the kernel at about 2.5 GB. If macOS swap is near full, restart the Mac first; on 13 Oct a leaking `audioanalyticsd` (9.4 GB) made runs take hours.
+- **Status (13 Oct): built and run** on branch `qiaoye/p1-xgboost-notebook`. See §10.9 for where it departs from this section.
 
 **How the model relates to BQ2:** the model is a means, not the answer. BQ2 is about concentration and schemes. The model contributes detection per scheme ("which schemes are missed") and risk-weighted exposure (scores summed by channel, currency and bank). It does not produce a per-transaction alert queue for investigators.
 
@@ -228,14 +235,38 @@ Phase 4 (slides and rehearsal) is shared by all three; each person presents thei
 1. **Network features for the model (Experiment B).** One-hop features miss multi-hop schemes. Add `fwd_within_24h`, `mins_to_forward`, `returns_to_sender_72h`, `sender_two_hop_out` and `receiver_two_hop_in` (stretch: `in_3cycle_72h`), and compare A vs B on detection per scheme. Full spec: `notebooks/AGENT_HANDOVER.md`.
    - Measured on 1–7 Sep: `returns_to_sender_72h` is true for 0.05% of normal rows vs 4.9% of laundering rows, and 14.6% of cycle rows.
 2. **Exclude self-transfers from the multi-hop lookups.** They are 15% of rows; with them included, `returns_to_sender_72h` matches the row against itself.
-3. **Leakage fix.** The account features saved in `hi_small_clean.csv` (`sender_fan_out_degree` and the rest) were computed over all 10 days. Recompute account features from **1–7 Sep only**. The `curated_accounts` CTAS has the same problem if it aggregates every date.
+3. **Leakage fix.** The account features saved in `hi_small_clean.csv` (`sender_fan_out_degree` and the rest) were computed over all 10 days. Recompute them inside the notebook. Fitting them on "1–7 Sep only" turned out to leak too (§10.9), so the notebook fits them **out-of-day**. The `curated_accounts` CTAS has the same problem if it aggregates every date; the model doesn't need it.
 4. **Baseline wording.** F1 0.34, PR-AUC 0.31 and 62.7% came from scikit-learn `HistGradientBoostingClassifier`. Call them "baseline" until the XGBoost run replaces them.
 5. **Open conflict: the dashboard.** The HTML says a Plotly static site on S3 ($0). The newer slide diagram shows **Streamlit on Amazon EC2** as the exposure dashboard. Ask Qiaoye which is final before building either, and keep the cost table in sync (a t3.small costs about $0.02/hr, so stop it when not demoing).
-6. **Slide wording to reuse.** The BQ2 subtitle is "We analysed 5 million bank transfers to find the channels, banks and currencies where laundering clusters, and the patterns each scheme leaves behind, so investigators know where to look first." For the model, say "The risk score uses each account's direct network (fan-in, fan-out, counterparties, pass-through). It does not trace money across multiple hops, which is why cycle and stack schemes are caught less often." Update the second sentence once Experiment B results exist.
+6. **Slide wording to reuse.** The BQ2 subtitle is "We analysed 5 million bank transfers to find the channels, banks and currencies where laundering clusters, and the patterns each scheme leaves behind, so investigators know where to look first." For the model, say "The risk score uses each account's direct network (fan-in, fan-out, counterparties, pass-through). Adding features that follow money across more than one hop lifts detection of bipartite, gather-scatter, stack and cycle schemes by 8–9 points, while fan-in and fan-out, already visible from one account, barely change."
+7. **FX: use the simulator's own rates, not ECB (decided by Qiaoye, 13 Oct).** Real ECB rates gave each cross-currency transfer two different USD values (Yen about 25% off, Ruble about 30%) and had no Bitcoin. `scripts/build_fx_from_data.py` takes the median paid ÷ received on rows with USD on one side and writes `reference/fx/fx_rates.csv`. The notebook's local mode computes the same rates, so both modes give the same `amount_usd`.
+8. **`curated_transactions` is built (13 Oct).** It was built in Athena with `scripts/run_athena_sql.py`. Recon passes: 5,078,336 rows, 5,177 laundering, 3,209 with a scheme, 1,968 `UNSTRUCTURED`, 0 NULL `amount_paid_usd`. Fixes needed on the way (all on branch `qiaoye/fix-curated-pipeline`):
+   - `fx_rates.csv` had `iso_code` first, so the join matched nothing.
+   - `patterns.csv` in S3 had 13 columns against a 14-column table; it was regenerated with the handler's own `parse()`.
+   - `currency_lookup.csv` had never been uploaded.
+   - Bitcoin was missing from the FX file.
+   - The DAG used `HI-Small_Patterns.txt`, but the S3 object is `HI_Small_Patterns.txt`.
+   - `fetch_fx` now writes to `reference/fx_ecb/`, so a DAG run can't overwrite the table.
+
+   The IAM user `aml-cli` got the inline policy `AthenaCuratedBuild` (Athena primary workgroup, Glue `aml_bq2`, S3 bucket `aml-bq2`). It still has no Lambda permissions.
+9. **Notebook departs from the spec in three ways (approved by Qiaoye, 13 Oct):**
+   - **Out-of-day account features.** Each train day's one-hop and two-hop features are fitted on the other six train days; test rows use all of 1–7 Sep. Fitting on 1–7 Sep for every row let train rows see their own transfer. That run scored 0.42 PR-AUC on 7 Sep but 0.105 on test.
+   - **Cut-off-aware relay features.** `fwd_within_24h` and `returns_to_sender_72h` are NaN, not 0, when their horizon runs past the window end without a match. "After ts" is strict: same-minute matches don't count.
+   - **`learning_rate=0.1` instead of 0.05.** At 0.05, A ran to the 2,000-round cap and took 33 min.
+
+   The spec-version outputs are kept locally in `out/model_spec_run/`.
+10. **Why the old baseline is out of reach.** A 13 Oct diagnostic rebuilt the account features four ways (10% of normal rows, 300 rounds):
+    - all 10 days (leaky): PR-AUC 0.360, 64.3% in the top 0.5%;
+    - fitted on 1–7 Sep: 0.143;
+    - out-of-day: 0.192;
+    - none: 0.151.
+
+    The 0.31 / 62.7% baseline only appears when the features see the test days.
+11. **Alert threshold.** `out/model/score_threshold.json` has threshold 0.272898 (the top 0.5% of train-day scores). On the test days, 9,672 rows (0.72%) score at or above it, so `check_anomaly` will flag about 44% more than the 0.5% budget. Consider recomputing it out-of-sample before P4.
 
 ## 11. Repo and working rules
 
-**Repo:** the git clone `bda-group-2` (GitHub `kinokokam/bda-group-2`), with a `.venv`. Work only there. AWS region is `ap-southeast-1`; Claude is `global.anthropic.claude-haiku-4-5-20251001-v1:0` on Bedrock. Layout:
+**Repo:** the git clone `bda-group-2`, with a `.venv`. Its `origin` is `https://github.com/kinokokam/aml-bq2-pipeline.git` (a personal GitHub repo, and there are no GitHub credentials on the laptop, so `git fetch` fails). Work only there. AWS region is `ap-southeast-1`; Claude is `global.anthropic.claude-haiku-4-5-20251001-v1:0` on Bedrock. Layout:
 
 ```
 docs/              plan page (Laundering_Exposure_Plan.html), this file
@@ -256,9 +287,10 @@ site/              index.html (Neeharika), monitor.html (Qiaoye)
 
 - **No secrets** in code, notebooks, commits or logs. Use `.env` (git-ignored) with `.env.example` placeholders, and the AWS named profile `aml-bq2`. If a key is ever exposed, tell Qiaoye to rotate it.
 - **No data in git:** no CSV outside `reference/`, no Parquet. Clear notebook outputs before committing.
-- **Commit locally only. Never `git push`;** Qiaoye pushes.
+- **Git:** start each piece of work on a new branch from the latest `main`. Commit locally. Claude may push feature branches for Qiaoye's MRs, but **only** to remotes under `https://gitlab.com/shopback` (ShopBack policy) and never to `main`/`master`. The current `origin` is personal GitHub, so nothing is pushed; Qiaoye pushes.
 - **Never use these as model inputs:** `is_laundering`, `pattern`, `attempt_id`. Always drop the 11–18 Sep tail. Split by time.
 - **Cost:** don't create paid AWS resources (EC2, Glue jobs, SageMaker, MWAA) without asking. Never touch Marketplace, Redshift, RDS or QuickSight.
-- **Stay in your lane:** change only Qiaoye's areas (`notebooks/`, `airflow/`, `monitoring/`, `agent/`, `site/monitor.html`) unless asked. Owen's and Neeharika's files are theirs.
+- **Stay in your lane:** change only Qiaoye's areas (`notebooks/`, `airflow/`, `monitoring/`, `agent/`, `site/monitor.html`) unless asked. Owen's and Neeharika's files are theirs. Exception: on 13 Oct Qiaoye asked for Owen's curated pipeline to be fixed (§10.8).
+- **Permissions on this laptop:** reading `.env` and `.env.example` is blocked for Claude; Qiaoye edits those by hand.
 - **Writing style for anything Qiaoye presents:** plain, complete sentences; concise; no jargon without a one-line explanation; never call the notebook "PaySim" or an "earlier project".
 - **Numbers:** quote measured numbers from section 3 or from your own runs, and say which. Never estimate a figure and present it as measured.
