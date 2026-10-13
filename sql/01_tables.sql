@@ -24,6 +24,7 @@ LOCATION 's3://aml-bq2-YOUR_TEAM_NAME/raw/trans/'
 TBLPROPERTIES ('skip.header.line.count' = '1');
 
 -- One row per laundering transfer with its scheme, written by lambdas/parse_patterns.
+-- Column order must match its HEADER (14 columns, including pattern_detail).
 CREATE EXTERNAL TABLE IF NOT EXISTS aml_bq2.patterns (
   attempt_id         int,
   pattern            string,
@@ -44,12 +45,15 @@ ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
 LOCATION 's3://aml-bq2-YOUR_TEAM_NAME/curated/patterns/'
 TBLPROPERTIES ('skip.header.line.count' = '1');
 
--- Daily FX, written by lambdas/fetch_fx. rate_date is 'YYYY/MM/DD' to match substr(ts, 1, 10).
+-- Daily FX, written by scripts/build_fx_from_data.py (the simulator's own fixed rates, recovered
+-- from cross-currency rows; lambdas/fetch_fx is the ECB alternative and writes to reference/fx_ecb/).
+-- rate_date is 'YYYY/MM/DD' to match substr(ts, 1, 10). Column order must match the CSV.
 -- units_per_usd: how many units of the currency buy 1 USD (USD = 1.0).
 CREATE EXTERNAL TABLE IF NOT EXISTS aml_bq2.fx_rates (
   rate_date      string,
   iso_code       string,
-  units_per_usd  double
+  units_per_usd  double,
+  source         string
 )
 ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
 LOCATION 's3://aml-bq2-YOUR_TEAM_NAME/reference/fx/'

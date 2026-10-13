@@ -73,7 +73,7 @@ with DAG(
     # ------------------------- batch: steps 2–7 -------------------------
     parse_patterns = LambdaInvokeFunctionOperator(
         task_id="parse_patterns", function_name="parse_patterns",
-        payload=f'{{"bucket": "{BUCKET}", "key": "raw/patterns/HI-Small_Patterns.txt"}}')
+        payload=f'{{"bucket": "{BUCKET}", "key": "raw/patterns/HI_Small_Patterns.txt"}}')
     fetch_fx = LambdaInvokeFunctionOperator(task_id="fetch_fx", function_name="fetch_fx", payload="{}")
     curated = AthenaOperator(task_id="curated_transactions", query=sql("02_curated_transactions.sql"),
                              database=DB, output_location=ATHENA_OUT)
