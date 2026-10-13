@@ -1,0 +1,11 @@
+pandas
+numpy
+pyarrow
+scikit-learn
+xgboost
+shap
+boto3
+langchain-core
+langchain-aws
+pydantic
+python-dotenv

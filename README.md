@@ -29,7 +29,7 @@ Kaggle → S3 `raw/` → Lambda (parse patterns, fetch FX) → Athena CTAS → S
 
 ```bash
 # 1. Python deps for local work
-python3 -m pip install pandas numpy pyarrow xgboost shap scikit-learn boto3
+python -m pip install -r requirements.txt
 
 # 2. Get the data (asks for your Kaggle API key the first time)
 python3 scripts/download_aml.py            # → ~/aml_data/

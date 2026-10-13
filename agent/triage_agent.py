@@ -5,7 +5,7 @@ The checks in monitoring/checks.py decide pass or fail. This agent only reads th
 results plus a few fixed, read-only facts, and writes a short structured note:
 severity, verdict, a three-sentence summary, the numbers it used, a suggested action.
 
-Install:  pip install langchain-core pydantic  plus ONE of:
+Install:  pip install langchain-core pydantic python-dotenv  plus ONE of:
           langchain-aws        (Amazon Bedrock, uses your AWS profile)
           langchain-anthropic  (Anthropic API, uses ANTHROPIC_API_KEY from .env)
 Keys and model IDs come from environment variables only; never hard-code them.
@@ -18,6 +18,12 @@ import re
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+try:  # read settings from .env in the repo root, if python-dotenv is installed
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 
 class Triage(BaseModel):
@@ -42,9 +48,14 @@ Rules:
 def get_llm():
     provider = os.environ.get("AGENT_PROVIDER", "bedrock")
     if provider == "bedrock":
-        from langchain_aws import ChatBedrock
-        return ChatBedrock(model_id=os.environ["BEDROCK_MODEL_ID"],
-                           model_kwargs={"max_tokens": 400, "temperature": 0})
+        # Converse API: works with inference profiles such as global.anthropic.claude-haiku-4-5-...
+        import boto3
+        from langchain_aws import ChatBedrockConverse
+        session = boto3.Session(profile_name=os.environ.get("AWS_PROFILE"),
+                                region_name=os.environ.get("AWS_REGION", "ap-southeast-1"))
+        return ChatBedrockConverse(client=session.client("bedrock-runtime"),
+                                   model=os.environ["BEDROCK_MODEL_ID"], provider="anthropic",
+                                   max_tokens=400, temperature=0)
     from langchain_anthropic import ChatAnthropic
     return ChatAnthropic(model=os.environ["ANTHROPIC_MODEL"], max_tokens=400, temperature=0)
 
