@@ -63,8 +63,12 @@ def agent_triage(**ctx):
 
 
 def send_alert(**ctx):
-    """Email the team when the agent's severity is 'high'."""
-    raise NotImplementedError
+    """Log the agent's note to out/alerts.log when its severity is 'high' (email in a real deployment)."""
+    from monitoring.alerts import send_alert as log_alert
+    ti = ctx["ti"]
+    note = ti.xcom_pull(task_ids="agent_triage")
+    path = ti.xcom_pull(task_ids="gate")        # the branch it chose: build_marts or quarantine
+    return log_alert(note, path) if note else False
 
 
 default_args = {"retries": 1, "retry_delay": timedelta(minutes=1)}
