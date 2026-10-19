@@ -52,7 +52,11 @@ def get_llm():
         import boto3
         from langchain_aws import ChatBedrockConverse
         session = boto3.Session(profile_name=os.environ.get("AWS_PROFILE"),
-                                region_name=os.environ.get("AWS_REGION", "ap-southeast-1"))
+                                # BEDROCK_REGION: where Bedrock calls enter, separate from AWS_REGION
+                                # (S3/Athena). On 19 Oct the global Haiku 4.5 profile failed from
+                                # ap-southeast-1 with ServiceUnavailable but worked from us-east-1.
+                                region_name=os.environ.get("BEDROCK_REGION",
+                                                           os.environ.get("AWS_REGION", "ap-southeast-1")))
         return ChatBedrockConverse(client=session.client("bedrock-runtime"),
                                    model=os.environ["BEDROCK_MODEL_ID"], provider="anthropic",
                                    max_tokens=400, temperature=0)
