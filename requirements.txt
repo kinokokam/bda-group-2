@@ -11,3 +11,4 @@ pydantic
 python-dotenv
 nbconvert
 ipykernel
+pytest

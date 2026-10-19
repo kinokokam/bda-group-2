@@ -32,9 +32,14 @@ def sql(name: str) -> str:
 
 # ---- monitoring task bodies (fill in; each pulls its slice from S3/Athena) ----
 def replay_slice(**ctx):
-    """Copy the next simulated hour of HI-Small into raw/stream/slice=<ts>/.
-    The slice id is the DAG run's logical date mapped onto 1–10 Sep 2022."""
-    raise NotImplementedError
+    """Return the next slice id (pushed to XCom). Local mode: slices are pre-cut into out/stream/
+    by `python -m monitoring.replay build`; the cursor in out/stream/_cursor.json moves one slice per run."""
+    from airflow.exceptions import AirflowSkipException
+    from monitoring.replay import next_slice
+    sid = next_slice()
+    if sid is None:
+        raise AirflowSkipException("end of replay")
+    return sid
 
 
 def run_checks(check: str, **ctx):
