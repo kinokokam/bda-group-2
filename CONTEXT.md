@@ -44,7 +44,11 @@ Account features for a transfer that are built from other days only, never from 
 
 **Alert budget**:
 The share of transfers that may be flagged: the top 0.5% by risk score (6,728 alerts on the test days).
-_Avoid_: threshold (the score at the budget's edge), cut-off
+_Avoid_: quota (the budget only places the alert threshold; it doesn't cap alerts per slice)
+
+**Alert threshold**:
+The fixed risk score above which a transfer is flagged, placed so that roughly the alert budget is flagged on a normal day. An unusual slice can flag far more or fewer than the budget.
+_Avoid_: cut-off, line
 
 **Detection rate**:
 The share of a scheme's laundering transfers that fall inside the alert budget.

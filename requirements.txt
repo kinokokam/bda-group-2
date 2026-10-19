@@ -9,3 +9,5 @@ langchain-core
 langchain-aws
 pydantic
 python-dotenv
+nbconvert
+ipykernel
