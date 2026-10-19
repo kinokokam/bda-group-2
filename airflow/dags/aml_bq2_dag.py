@@ -43,8 +43,11 @@ def replay_slice(**ctx):
 
 
 def run_checks(check: str, **ctx):
-    """Load the slice + baseline, call monitoring.checks.check_<check>, push the result dict to XCom."""
-    raise NotImplementedError
+    """Push one check's result dict to XCom. monitoring.run.run_checks runs all four on the slice
+    (curate, score with the live model, check) and caches nothing between tasks, so each task reruns it."""
+    from monitoring.run import run_checks as run_all
+    sid = ctx["ti"].xcom_pull(task_ids="replay_slice")
+    return next(r for r in run_all(sid, write=check == "anomaly")["results"] if r["check"] == check)
 
 
 def choose_path(**ctx):
