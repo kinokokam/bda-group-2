@@ -58,8 +58,10 @@ def choose_path(**ctx):
 
 
 def agent_triage(**ctx):
-    """Call agent.triage_agent.triage(...) and write marts/agent/<slice>.json."""
-    raise NotImplementedError
+    """Agent note for the slice (out/monitor/notes/<slice>.json); reads the checks file score_and_anomaly wrote.
+    The alert is left to send_alert."""
+    from monitoring.run import triage_slice
+    return triage_slice(ctx["ti"].xcom_pull(task_ids="replay_slice"), alert=False)
 
 
 def send_alert(**ctx):

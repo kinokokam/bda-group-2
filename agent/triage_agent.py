@@ -60,22 +60,47 @@ def get_llm():
     return ChatAnthropic(model=os.environ["ANTHROPIC_MODEL"], max_tokens=400, temperature=0)
 
 
+class FakeLLM:
+    """Stands in for Claude in tests: always returns the same note and made-up token counts.
+    Mirrors the slice of the LangChain interface triage() uses."""
+
+    def __init__(self, note: dict, input_tokens: int = 500, output_tokens: int = 120):
+        self.note, self.usage = note, {"input_tokens": input_tokens, "output_tokens": output_tokens,
+                                       "total_tokens": input_tokens + output_tokens}
+        self.calls: list = []
+
+    def with_structured_output(self, schema, include_raw: bool = False):
+        self.schema = schema
+        return self
+
+    def invoke(self, messages):
+        self.calls.append(messages)
+        raw = type("AIMessage", (), {"usage_metadata": self.usage})()
+        return {"raw": raw, "parsed": self.schema(**self.note), "parsing_error": None}
+
+
 def numbers_in(text: str) -> set[str]:
     return set(re.findall(r"-?\d+(?:\.\d+)?", text.replace(",", "")))
 
 
-def triage(slice_id: str, check_results: list[dict], facts: dict) -> dict:
+def triage(slice_id: str, check_results: list[dict], facts: dict, llm=None) -> dict:
     """facts: small, pre-computed context, e.g. baseline laundering rate, weekday volume,
-    day of month, which categories moved. Fetched by fixed read-only queries upstream."""
+    day of month, which categories moved. Fetched by fixed read-only queries upstream.
+    llm: defaults to get_llm(); tests pass a FakeLLM."""
     payload = {"slice": slice_id, "checks": check_results, "facts": facts}
-    llm = get_llm().with_structured_output(Triage)
-    note: Triage = llm.invoke([("system", SYSTEM), ("human", json.dumps(payload, default=str))])
+    structured = (llm or get_llm()).with_structured_output(Triage, include_raw=True)
+    reply = structured.invoke([("system", SYSTEM), ("human", json.dumps(payload, default=str))])
+    if reply.get("parsed") is None:
+        raise ValueError(f"agent reply did not parse: {reply.get('parsing_error')}")
+    note: Triage = reply["parsed"]
+    usage = getattr(reply["raw"], "usage_metadata", None) or {}
 
     # Guardrail: every number the agent quotes must exist in what it was given.
     allowed = numbers_in(json.dumps(payload, default=str))
     unknown = sorted(numbers_in(note.summary + " " + " ".join(note.evidence)) - allowed)
     out = note.model_dump()
     out.update({"slice": slice_id, "unverified_numbers": unknown,
+                "usage": {k: usage.get(k) for k in ("input_tokens", "output_tokens", "total_tokens")},
                 "label": "AI-generated note, review before acting"})
     return out
 

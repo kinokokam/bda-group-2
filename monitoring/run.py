@@ -1,7 +1,8 @@
 """
 Run the four live checks on one replayed slice (local mode) and decide the gate.
 
-    python -m monitoring.run 2022-09-08T10      # writes out/monitor/checks/<slice>.json
+    python -m monitoring.run 2022-09-08T10            # writes out/monitor/checks/<slice>.json
+    python -m monitoring.run 2022-09-11 --triage      # plus the agent note in out/monitor/notes/
 
 Per slice:
     raw slice (out/stream/)  ->  curate (dedup + FX join)  ->  score with the live model
@@ -25,13 +26,15 @@ import xgboost as xgb
 from monitoring import checks
 from monitoring.curate import curate_slice, load_currency_lookup, load_fx
 from monitoring.features import live_features
-from monitoring.replay import REPO, STREAM_DIR, list_slices, load_slice, slice_bounds
+from monitoring.replay import REPO, STREAM_DIR, TAIL_START, list_slices, load_slice, slice_bounds
 
 LIVE_DIR = REPO / "out" / "live_model"
 CHECKS_DIR = REPO / "out" / "monitor" / "checks"
 BASELINE_DAYS = ["2022-09-02", "2022-09-05", "2022-09-06", "2022-09-07", "2022-09-08", "2022-09-09"]
 WEEKEND_DAYS = ["2022-09-03", "2022-09-04"]
-BASELINE_COLS = ["ts", "from_bank", "payment_format", "payment_currency", "amount_paid_usd", "score"]
+BASELINE_COLS = ["ts", "from_bank", "payment_format", "payment_currency", "amount_paid_usd",
+                 "is_laundering", "score"]
+NOTES_DIR = REPO / "out" / "monitor" / "notes"
 
 
 @lru_cache(maxsize=1)
@@ -116,16 +119,53 @@ def run_checks(sid: str, fx: pd.DataFrame | None = None, out_dir: Path = STREAM_
         checks.check_drift(base_slice, scored),
         checks.check_anomaly(scored, base_volume, base_bank_share, threshold),
     ]
-    out = {"slice": sid, "gate": checks.gate(results),
-           "path": "build_marts" if checks.gate(results) == "pass" else "quarantine",
-           "results": results}
+    gate = checks.gate(results)
+    out = {"slice": sid, "gate": gate, "path": "build_marts" if gate == "pass" else "quarantine",
+           "results": results, "facts": slice_facts(sid, scored, base_slice, base_volume)}
     if write:
         CHECKS_DIR.mkdir(parents=True, exist_ok=True)
         (CHECKS_DIR / f"{sid}.json").write_text(json.dumps(out, indent=2, default=str))
     return out
 
 
+def slice_facts(sid: str, scored: pd.DataFrame, base_slice: pd.DataFrame, base_volume: pd.Series) -> dict:
+    """Calendar and baseline context for the agent: the numbers it may quote besides the checks'."""
+    start, _ = slice_bounds(sid)
+    fmt = scored["payment_format"].value_counts(normalize=True)
+    normal_fmt = base_slice["payment_format"].value_counts(normalize=True)
+    top = fmt.index[0] if len(fmt) else None
+    return {
+        "weekday": start.day_name(), "day_of_month": start.day,
+        "hour": start.hour if "T" in sid else "whole day",
+        "is_month_start": start.day == 1, "is_weekend": start.dayofweek >= 5,
+        "inside_simulation_window_1_to_10_sep": start < TAIL_START,
+        "normal_rows_same_slice_type": int(round(base_volume.mean())),
+        "normal_laundering_rate_pct": round(100 * float(base_slice["is_laundering"].mean()), 3),
+        "top_payment_format": top,
+        "top_format_share_pct": round(100 * float(fmt.iloc[0]), 1) if top else None,
+        "top_format_normal_share_pct": round(100 * float(normal_fmt.get(top, 0.0)), 1) if top else None,
+    }
+
+
+def triage_slice(sid: str, llm=None, alert: bool = True) -> dict:
+    """Agent note for a slice whose checks ran: written to out/monitor/notes/<slice>.json, alerted if high."""
+    from agent.triage_agent import triage
+    from monitoring.alerts import send_alert
+    checked = json.loads((CHECKS_DIR / f"{sid}.json").read_text())
+    facts = {**checked["facts"], "gate_decision": checked["path"]}
+    note = triage(sid, checked["results"], facts, llm=llm)
+    NOTES_DIR.mkdir(parents=True, exist_ok=True)
+    (NOTES_DIR / f"{sid}.json").write_text(json.dumps(note, indent=2, default=str))
+    if alert:
+        send_alert(note, checked["path"])
+    return note
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slice", help="slice id, e.g. 2022-09-08T10 or 2022-09-11")
-    print(json.dumps(run_checks(ap.parse_args().slice), indent=2, default=str))
+    ap.add_argument("--triage", action="store_true", help="also ask the agent for a note (calls the model)")
+    args = ap.parse_args()
+    print(json.dumps(run_checks(args.slice), indent=2, default=str))
+    if args.triage:
+        print(json.dumps(triage_slice(args.slice), indent=2, default=str))

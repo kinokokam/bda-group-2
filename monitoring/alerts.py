@@ -16,7 +16,7 @@ from monitoring.replay import REPO
 ALERTS_LOG = REPO / "out" / "alerts.log"
 
 
-def send_alert(note: dict, path: str | None = None, log: Path = ALERTS_LOG) -> bool:
+def send_alert(note: dict, path: str | None = None, log: Path | None = None) -> bool:
     """Log the note if its severity is high. path: the gate's choice ('build_marts' or 'quarantine').
     Returns True when an alert was written."""
     if note.get("severity") != "high":
@@ -28,13 +28,15 @@ def send_alert(note: dict, path: str | None = None, log: Path = ALERTS_LOG) -> b
         **{k: note.get(k) for k in ("severity", "verdict", "summary", "suggested_action",
                                      "unverified_numbers", "label")},
     }
+    log = log or ALERTS_LOG
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry) + "\n")
     return True
 
 
-def read_alerts(log: Path = ALERTS_LOG) -> list[dict]:
+def read_alerts(log: Path | None = None) -> list[dict]:
+    log = log or ALERTS_LOG
     if not log.exists():
         return []
     return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines() if line.strip()]
