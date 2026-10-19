@@ -1,0 +1,30 @@
+# Environment and secrets
+.env
+*.pem
+*.key
+kaggle.json
+
+# Python caches and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Staging data and model artifacts
+*.parquet
+*.csv
+!reference/*.csv
+
+# Airflow runtime
+airflow/logs/
+logs/
+airflow.cfg
+airflow.db
+
+# OS files
+.DS_Store
+Thumbs.db
