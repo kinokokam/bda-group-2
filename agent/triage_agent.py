@@ -38,9 +38,21 @@ SYSTEM = """You are an anti-money-laundering data analyst reviewing one hourly s
 transactions that has just been checked by an automated pipeline.
 You receive the check results and some baseline facts as JSON.
 Rules:
-- Use only numbers that appear in the input. Never invent figures.
-- Decide whether the slice shows expected behaviour (for example a month-start batch),
-  something a risk team should investigate, or a data problem.
+- Use only numbers that appear in the input, copied exactly. Never invent figures, and do not
+  compute new ones (no "N times normal"); quote the given numbers side by side instead.
+- Pick the verdict by these definitions, checking them in this order:
+  - "data issue": the data itself is wrong or does not belong, so it says nothing about
+    laundering. Only these signs count: recon failed (rows lost between raw and curated),
+    quality failed (broken values), or facts.inside_simulation_window_1_to_10_sep is false
+    (rows dated after the simulation ends are leftovers, however suspicious they look).
+    A failed drift or anomaly check, or the slice being quarantined, is not a sign by itself.
+  - "expected": the unusual numbers are explained by a calendar fact in the input. For
+    example, facts.is_month_start is true and the top payment format is a batch format such
+    as Reinvestment: that is the month-start batch, not laundering and not broken data.
+  - "investigate": neither explains it; a risk team should look for possible laundering.
+- Severity: "low" for expected; "medium" for a data issue that is already quarantined;
+  "high" for investigate, or for a data issue that loses or corrupts data that would
+  otherwise reach the dashboard.
 - The pass/fail status is already decided by code. Explain it; do not override it.
 - Keep the summary to three short sentences a non-technical risk manager can follow."""
 
@@ -84,8 +96,9 @@ class FakeLLM:
 
 
 def numbers_in(text: str) -> set[str]:
-    """Numbers in the text, with trailing decimal zeros dropped so 100.0 in the input matches 100 in a note."""
-    found = re.findall(r"-?\d+(?:\.\d+)?", text.replace(",", ""))
+    """Numbers in the text, with trailing decimal zeros dropped so 100.0 in the input matches 100 in a note.
+    A minus sign right after a digit is a range ("1-10"), not a negative number."""
+    found = re.findall(r"(?<!\d)-?\d+(?:\.\d+)?", text.replace(",", ""))
     return {n.rstrip("0").rstrip(".") if "." in n else n for n in found}
 
 

@@ -43,3 +43,8 @@ def test_triage_slice_writes_the_note_and_alerts_only_high(tmp_path, monkeypatch
 def test_numbers_match_with_or_without_trailing_zeros():
     note = {**NOTE, "summary": "100% ACH.", "evidence": ["100"]}
     assert triage("2022-09-11", CHECKS, {"top_format_share_pct": 100.0}, llm=FakeLLM(note))["unverified_numbers"] == []
+
+
+def test_a_date_range_is_not_a_negative_number():
+    note = {**NOTE, "summary": "Dated outside 1-10 September.", "evidence": []}
+    assert triage("2022-09-11", CHECKS, {"inside_1_to_10": False}, llm=FakeLLM(note))["unverified_numbers"] == []
