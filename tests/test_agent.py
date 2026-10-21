@@ -38,3 +38,8 @@ def test_triage_slice_writes_the_note_and_alerts_only_high(tmp_path, monkeypatch
     run.triage_slice("2022-09-11", llm=FakeLLM({**NOTE, "severity": severity}))
     assert json.loads((tmp_path / "notes" / "2022-09-11.json").read_text())["severity"] == severity
     assert len(alerts.read_alerts()) == alerted
+
+
+def test_numbers_match_with_or_without_trailing_zeros():
+    note = {**NOTE, "summary": "100% ACH.", "evidence": ["100"]}
+    assert triage("2022-09-11", CHECKS, {"top_format_share_pct": 100.0}, llm=FakeLLM(note))["unverified_numbers"] == []

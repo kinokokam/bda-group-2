@@ -84,7 +84,9 @@ class FakeLLM:
 
 
 def numbers_in(text: str) -> set[str]:
-    return set(re.findall(r"-?\d+(?:\.\d+)?", text.replace(",", "")))
+    """Numbers in the text, with trailing decimal zeros dropped so 100.0 in the input matches 100 in a note."""
+    found = re.findall(r"-?\d+(?:\.\d+)?", text.replace(",", ""))
+    return {n.rstrip("0").rstrip(".") if "." in n else n for n in found}
 
 
 def triage(slice_id: str, check_results: list[dict], facts: dict, llm=None) -> dict:
