@@ -20,19 +20,28 @@ HI-*_Patterns.txt
 
 # --- python / jupyter ---
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
 .venv/
 venv/
+env/
 .ipynb_checkpoints/
 
 # --- airflow local state ---
 airflow/logs/
 airflow/plugins/__pycache__/
 airflow/config/
+airflow.cfg
 airflow.db
+logs/
+
+# --- generated outputs (replay slices, live model, checks, notes, alert log) ---
+out/
 
 # --- os / editors ---
 .DS_Store
+Thumbs.db
 .vscode/
 .idea/
-out/
