@@ -1,6 +1,6 @@
 # AML BQ2: Laundering Exposure
 
-Where money laundering concentrates in the IBM AML HI-Small transfers, and how each laundering scheme moves money. Also covers the live monitor that replays those transfers slice by slice.
+Where money laundering concentrates in the IBM AML HI-Small transfers, and how each laundering scheme moves money. Also covers the monitor that replays those transfers slice by slice, and the Helical dashboard that shows both.
 
 ## Language
 
@@ -57,5 +57,26 @@ _Avoid_: recall per scheme, catch rate
 **Risk lift**:
 A group's share of the summed risk score divided by its share of transfers. Above 1 means the group carries more risk than its volume suggests.
 
+### Monitoring
+
 **Slice**:
-One simulated hour of transfers. The live monitor replays them one at a time.
+One simulated day of transfers. The monitor replays them one at a time, 1–10 Sep plus 11 Sep from the tail.
+_Avoid_: batch, hour (slices were hourly until 26 Oct)
+
+**Check**:
+One of four tests a slice must pass: recon, quality, drift or anomaly. Each result is pass or fail; there is no warning level.
+
+**Gate**:
+The rule that accepts a slice only if every check passes. It is code, never the agent.
+
+**Quarantine**:
+Where a slice that failed the gate goes, so it never reaches the dashboard.
+_Avoid_: reject, drop
+
+**Triage note**:
+The agent's short explanation of a failed slice: severity, verdict (expected, data issue or investigate), summary and suggested action. A slice that passes every check gets no note.
+_Avoid_: AI summary, report
+
+**Snapshot**:
+The local copy of the S3 data, result tables, checks and triage notes that the dashboard reads. S3 stays the source of truth.
+_Avoid_: cache, extract
