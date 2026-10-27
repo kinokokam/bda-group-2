@@ -1,10 +1,23 @@
 terraform {
-  required_version = ">= 1.6"
+  # use_lockfile, which stops two applies racing, needs 1.10.
+  required_version = ">= 1.10"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.82"
     }
+  }
+
+  # State lives in S3, not on one laptop: anyone with the bda profile can run
+  # teardown, and S3 versioning keeps the previous serials. Values cannot be
+  # variables here, so they repeat terraform.tfvars.
+  backend "s3" {
+    bucket       = "aml-bq1"
+    key          = "terraform/bq1.tfstate"
+    region       = "ap-southeast-1"
+    profile      = "bda"
+    encrypt      = true
+    use_lockfile = true
   }
 }
 

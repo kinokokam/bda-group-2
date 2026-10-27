@@ -13,6 +13,9 @@ BUCKET="${S3_BUCKET_NAME:-aml-bq1}"
 ARTIFACTS=build
 MODEL_PREFIX=model/
 
+# Gitignored, so absent on a fresh clone; predemo and replay write here.
+mkdir -p "$ARTIFACTS"
+
 bootstrap() {
   local arn
   arn=$(aws kafka list-clusters-v2 --cluster-name-filter "$CLUSTER" \
