@@ -1,0 +1,38 @@
+[project]
+name = "bda-group-2"
+version = "0.1.0"
+description = "IS459 BDA G1T2 - AML transaction risk scoring (BQ1) and laundering exposure analysis (BQ2)."
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "boto3>=1.34.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "pyarrow>=14.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[dependency-groups]
+# Real-time scoring: replay simulator, Flink job packaging, analyst dashboard.
+bq1 = [
+    "kafka-python>=2.0.2",
+    "aws-msk-iam-sasl-signer-python>=1.0.1",
+    "xgboost>=2.0.0",
+    "scikit-learn>=1.3.0",
+    "shap>=0.44.0",
+    "streamlit>=1.30.0",
+]
+# Batch ETL, model training and the exposure marts.
+bq2 = [
+    "kaggle>=1.6.0",
+    "pyspark>=3.4.0,<4.0.0",
+    "xgboost>=2.0.0",
+    "scikit-learn>=1.3.0",
+    "matplotlib>=3.7.0",
+    "joblib>=1.3.0",
+]
+dev = [
+    "ruff>=0.5.0",
+]
+
+[tool.uv]
+default-groups = ["dev"]

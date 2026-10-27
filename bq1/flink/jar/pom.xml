@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>sg.smu.is459.bq1</groupId>
+  <artifactId>kafka-iam</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <!--
+    Managed Flink accepts a single pipeline JAR, so the Kafka connector, the
+    Kafka client and Amazon's IAM login module are shaded into one.
+
+    flink-connector-kafka, not flink-sql-connector-kafka: the SQL connector
+    relocates its Kafka classes, and the IAM login module then cannot find the
+    client it needs. That failure appears at runtime, not here.
+  -->
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>11</maven.compiler.release>
+    <flink.version>1.20.0</flink.version>
+    <flink.kafka.connector.version>3.4.0-1.20</flink.kafka.connector.version>
+    <!-- 2.3.5 and later require Java 17; the Managed Flink runtime is Java 11. -->
+    <msk.iam.version>2.2.0</msk.iam.version>
+    <iceberg.version>1.9.1</iceberg.version>
+    <slf4j.version>1.7.36</slf4j.version>
+    <!-- Must match the SDK inside iceberg-aws-bundle, else GlueCatalog hits
+         NoSuchFieldError on SdkClientOption fields the older SDK lacks. -->
+    <awssdk.version>2.29.52</awssdk.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>bom</artifactId>
+        <version>${awssdk.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-connector-kafka</artifactId>
+      <version>${flink.kafka.connector.version}</version>
+    </dependency>
+
+    <!-- Supplied by the runtime; needed to compile against, not to ship. -->
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-connector-base</artifactId>
+      <version>${flink.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-core</artifactId>
+      <version>${flink.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>${slf4j.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>software.amazon.msk</groupId>
+      <artifactId>aws-msk-iam-auth</artifactId>
+      <version>${msk.iam.version}</version>
+    </dependency>
+
+    <!--
+      Iceberg gold sink. The runtime artifact carries the Flink connector and
+      Iceberg core; the aws bundle carries GlueCatalog and S3FileIO.
+    -->
+    <dependency>
+      <groupId>org.apache.iceberg</groupId>
+      <artifactId>iceberg-flink-runtime-1.20</artifactId>
+      <version>${iceberg.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.iceberg</groupId>
+      <artifactId>iceberg-aws-bundle</artifactId>
+      <version>${iceberg.version}</version>
+    </dependency>
+
+    <!--
+      Carries org.apache.hadoop.conf. Iceberg's FlinkCatalogFactory builds a
+      Hadoop Configuration during CREATE CATALOG even for a Glue catalog on
+      S3FileIO, and the Managed Flink runtime ships no Hadoop.
+    -->
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-s3-fs-hadoop</artifactId>
+      <version>${flink.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>aml-bq1-kafka-iam</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.3</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <transformers>
+                <!--
+                  Kafka and Flink both discover implementations through
+                  META-INF/services. Without merging those files the shaded JAR
+                  loses the entries and the login module is never found.
+                -->
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+              <!--
+                Flink's application-mode classloader resolves org.apache.hadoop
+                and org.apache.flink parent-first, so the bundled copies are
+                ignored unless relocated. Shading rewrites Iceberg's references
+                along with them, pointing it at the copies in this JAR.
+              -->
+              <relocations>
+                <relocation>
+                  <pattern>org.apache.hadoop.conf</pattern>
+                  <shadedPattern>shaded.org.apache.hadoop.conf</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.flink.runtime.util.HadoopUtils</pattern>
+                  <shadedPattern>shadow.org.apache.flink.runtime.util.HadoopUtils</shadedPattern>
+                </relocation>
+              </relocations>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

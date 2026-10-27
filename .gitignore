@@ -17,7 +17,7 @@ venv/
 # Staging data and model artifacts
 *.parquet
 *.csv
-!reference/*.csv
+!bq2/reference/*.csv
 
 # Airflow runtime
 airflow/logs/
@@ -28,3 +28,24 @@ airflow.db
 # OS files
 .DS_Store
 Thumbs.db
+
+# Terraform
+infra/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# uv
+.venv/
+
+# Build artifacts: zips and the vendored Linux wheel bundle
+build/
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+bq1/todo.md
+
+# Maven build output
+target/

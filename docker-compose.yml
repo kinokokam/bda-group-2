@@ -13,17 +13,22 @@ x-airflow-common:
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-boto3 pyarrow pandas scikit-learn matplotlib kaggle xgboost}
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-boto3 awscli pyarrow pandas scikit-learn matplotlib kaggle xgboost}
     PYTHONPATH: /opt/airflow:/opt/airflow/dags
   volumes:
-    - ./airflow/dags:/opt/airflow/dags
+    # Airflow scans the dags folder recursively, so one stack serves both DAGs.
+    - ./bq1/airflow/dags:/opt/airflow/dags/bq1
+    - ./bq2/airflow/dags:/opt/airflow/dags/bq2
     - ./data:/opt/airflow/data
-    - ./ingestion:/opt/airflow/ingestion
-    - ./spark:/opt/airflow/spark
-    - ./models:/opt/airflow/models
+    - ./bq1/ingestion:/opt/airflow/ingestion
+    - ./bq1/spark:/opt/airflow/spark
+    - ./bq1/models:/opt/airflow/models
+    - ./bq2/monitoring:/opt/airflow/monitoring
+    - ./bq2/agent:/opt/airflow/agent
     - ./logs:/opt/airflow/logs
     - ./:/opt/airflow/repo
     - ./.env:/opt/airflow/.env:ro
+    - ${AWS_DIR:-~}/.aws:/home/airflow/.aws:ro
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     postgres:

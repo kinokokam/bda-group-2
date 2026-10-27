@@ -1,0 +1,12 @@
+region  = "ap-southeast-1"
+bucket  = "aml-bq1"
+profile = "bda"
+
+# First apply: both false, so the cluster and network come up without artifacts.
+# Build and upload the zips, then flip these and apply again.
+deploy_lambda = false
+deploy_flink  = false
+
+# MSK rejects public access at creation. Leave false on the first apply, then
+# set true and apply again once the cluster exists.
+enable_msk_public_access = false

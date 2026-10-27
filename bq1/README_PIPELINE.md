@@ -176,7 +176,7 @@ The primary way to execute the end-to-end pipeline is using the Apache Airflow D
 
 1. **Launch Airflow Stack**:
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 2. **Access Airflow UI**:
@@ -200,14 +200,28 @@ If you prefer running individual steps from the terminal:
 
 2. **Step 1: Ingest Raw Kaggle Dataset to S3 Bronze**:
    ```bash
-   python3 ingestion/ingest_aml_data.py --s3-bucket <YOUR_BUCKET>
+   python3 bq1/ingestion/ingest_aml_data.py --s3-bucket <YOUR_BUCKET>
    ```
 
 3. **Step 2: Submit Distributed PySpark ETL to AWS EMR**:
    ```bash
-   python3 spark/submit_emr.py --cluster-id <YOUR_EMR_CLUSTER_ID> --s3-bucket <YOUR_BUCKET>
+   python3 bq1/spark/submit_emr.py --cluster-id <YOUR_EMR_CLUSTER_ID> --s3-bucket <YOUR_BUCKET>
    ```
    *(Monitors the Spark step until `COMPLETED` and outputs processed splits to `s3://<YOUR_BUCKET>/processed/`)*.
 
 4. **Step 3: Train XGBoost Model & Evaluate on AWS**:
    Triggered via Airflow `task_train_xgboost` or submitted to EMR with `scripts/train_xgboost.py`. Outputs evaluation metrics, confusion matrix, PR curve, and model artifacts directly to `s3://<YOUR_BUCKET>/evaluation/` and `s3://<YOUR_BUCKET>/model/`.
+
+---
+
+## 6. Pipeline B: Real-Time Scoring
+
+A Lambda replays transactions into MSK; Managed Flink rebuilds the rolling
+account features, scores each record with the artifacts in `model/`, writes
+alerts back to MSK and scored rows to an Iceberg table in the Glue catalog.
+Requires Pipeline A to have completed.
+
+The commands are documented once, in the root [README](../README.md#running-it),
+so the two do not drift. In short: `pipeline.sh setup` once, then per session
+`pipeline.sh predemo`, the `aml_bq1_demo` Airflow DAG, and
+`pipeline.sh teardown`.
