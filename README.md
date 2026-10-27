@@ -237,12 +237,42 @@ is in [`bq2/docs/Laundering_Exposure_Plan.html`](bq2/docs/Laundering_Exposure_Pl
 
 | Folder | What lives here | Owner |
 | --- | --- | --- |
-| `bq2/scripts/` | `download_aml.py`, `profile_aml.py` | all |
-| `bq2/reference/` | Lookup CSVs committed to git | Neeharika |
-| `bq2/sql/` | Athena DDL, curated CTAS, one file per mart in `marts/` | Owen, Neeharika |
-| `bq2/lambdas/` | `parse_patterns`, `fetch_fx`, `publish` | Owen, Neeharika |
+| `bq2/docs/` | Plan page (open in a browser) | all |
+| `bq2/scripts/` | `download_aml.py` (Kaggle → `~/aml_data`), `profile_aml.py` (local profiling + cleaned output) | all |
+| `bq2/reference/` | Small lookup CSVs committed to git (`currency_lookup.csv`) | Neeharika |
+| `bq2/sql/` | Athena DDL, the curated CTAS, and one file per mart in `marts/` | Owen (DDL, CTAS), Neeharika (marts) |
+| `bq2/lambdas/` | `parse_patterns`, `fetch_fx`, `publish` handlers | Owen (first two), Neeharika (publish) |
 | `bq2/notebooks/` | `aml_xgboost.ipynb` | Qiaoye |
-| `bq2/airflow/dags/` | `aml_bq2_dag.py` | Qiaoye |
-| `bq2/monitoring/` | Recon, quality, drift (PSI), anomaly checks | Qiaoye |
+| `bq2/airflow/dags/` | `aml_bq2_dag.py`, the one DAG that runs everything | Qiaoye |
+| `bq2/monitoring/` | Recon, quality, drift (PSI) and anomaly checks | Qiaoye |
 | `bq2/agent/` | LangChain + Claude triage agent | Qiaoye |
-| `bq2/site/` | `index.html` dashboard, `monitor.html` live monitor | Neeharika, Qiaoye |
+| `bq2/site/` | `index.html` dashboard and `monitor.html` live monitor | Neeharika, Qiaoye |
+
+## Getting started
+
+```bash
+# 1. Python deps for local work
+python -m pip install -r requirements.txt
+
+# 2. Get the data (asks for your Kaggle API key the first time)
+python3 bq2/scripts/download_aml.py         # → ~/aml_data/
+
+# 3. Profile and create the cleaned local copy everyone codes against
+python3 bq2/scripts/profile_aml.py --data-dir ~/aml_data --out-dir ~/aml_data/aml_out
+
+# 4. AWS: use your own named profile, never keys in code
+cp .env.example .env                        # fill in, never commit .env
+aws configure --profile aml-bq2
+```
+
+Airflow runs locally with the official Docker Compose file
+(see the [Airflow docs](https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html)).
+Mount `bq2/airflow/dags/`, `bq2/monitoring/` and `bq2/agent/` into the
+containers and add `apache-airflow-providers-amazon` to the image.
+
+## Rules
+
+- **No data in git.** The 476 MB CSV is over GitHub's 100 MB file limit and belongs in S3. `.gitignore` already blocks `*.csv` outside `bq2/reference/`, and blocks Parquet and the data folders.
+- **No secrets in git.** AWS keys, Kaggle keys and the Anthropic key go in `.env` (ignored) or your AWS profile. If one is ever committed, rotate it straight away.
+- **Column names are a contract.** `curated_transactions` columns are listed in the plan page; change them only after telling the team.
+- **Keep the 11–18 Sep tail out** of every mart and model run (`txn_date <= '2022-09-10'`).

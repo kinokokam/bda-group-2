@@ -1,51 +1,62 @@
-# Environment and secrets
+# --- secrets ---
 .env
 *.pem
 *.key
+.aws/
 kaggle.json
 
-# Python caches and bytecode
+# --- data (lives in S3, not git) ---
+aml_data/
+aml_out/
+data/
+curated/
+*.parquet
+*.csv
+!bq2/reference/*.csv
+*.csv.gz
+*.txt.gz
+HI-*_Trans.csv
+HI-*_Patterns.txt
+
+# --- python / jupyter ---
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
 .venv/
+venv/
+env/
+.ipynb_checkpoints/
 
-# Staging data and model artifacts
-*.parquet
-*.csv
-!bq2/reference/*.csv
-
-# Airflow runtime
+# --- airflow local state ---
 airflow/logs/
-logs/
+airflow/plugins/__pycache__/
+airflow/config/
 airflow.cfg
 airflow.db
+logs/
 
-# OS files
+# --- generated outputs (replay slices, live model, checks, notes, alert log) ---
+out/
+
+# --- os / editors ---
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
 
-# Terraform
+# --- terraform ---
 infra/.terraform/
+.terraform/
 *.tfstate
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
 
-# uv
-.venv/
-
-# Build artifacts: zips and the vendored Linux wheel bundle
+# --- build output ---
 build/
-.terraform/
-*.tfstate
-*.tfstate.*
-terraform.tfvars
-bq1/todo.md
-
-# Maven build output
 target/
+
+# --- local working notes ---
+bq1/todo.md

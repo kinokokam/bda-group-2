@@ -112,19 +112,26 @@ def check_drift(baseline: pd.DataFrame, slice_df: pd.DataFrame,
 # --------------------------------------------------------------------------- #
 def check_anomaly(slice_df: pd.DataFrame, baseline_volume: pd.Series,
                   baseline_bank_share: pd.Series, score_threshold: float,
-                  z_fail: float = 3.0) -> dict:
+                  z_fail: float = 3.0, min_bank_flags: int = 6, min_rel_std: float = 0.10) -> dict:
     """
     slice_df needs a 'score' column from the XGBoost model.
     baseline_volume: transfers per slice for comparable slices (same hour, same day type).
     baseline_bank_share: each sending bank's normal share of top-scored transfers.
-    score_threshold: the score at the top 0.5% cut-off on the training days.
+    score_threshold: the alert threshold (top 0.5% of scores on a day the model did not fit on).
+    min_bank_flags: a bank is hot only with at least this many flags in the slice. On the
+        baseline hours no bank ever had more than 5, so one or two flags at a rarely flagged
+        bank (a huge but meaningless lift) can't fail the slice.
+    min_rel_std: floor on the volume spread, as a share of the baseline mean. The weekend baseline
+        has only two days (3-4 Sep), whose spread can be a handful of transfers; weekdays vary ~22%.
     """
     n = len(slice_df)
-    vol_z = float((n - baseline_volume.mean()) / (baseline_volume.std(ddof=0) or 1))
+    spread = max(baseline_volume.std(ddof=0), min_rel_std * baseline_volume.mean(), 1.0)
+    vol_z = float((n - baseline_volume.mean()) / spread)
     flagged = slice_df[slice_df["score"] >= score_threshold]
-    share = flagged["from_bank"].value_counts(normalize=True)
+    counts = flagged["from_bank"].value_counts()
+    share = counts / max(len(flagged), 1)
     lift = (share / baseline_bank_share.reindex(share.index).fillna(share.min() / 10)).sort_values(ascending=False)
-    hot_banks = lift[lift > 5].head(5).round(1).to_dict()
+    hot_banks = lift[(lift > 5) & (counts.reindex(lift.index) >= min_bank_flags)].head(5).round(1).to_dict()
     laundering_rate = float(slice_df["is_laundering"].mean()) if "is_laundering" in slice_df else None
     bad = abs(vol_z) > z_fail or bool(hot_banks)
     return {"check": "anomaly", "status": "fail" if bad else "pass",

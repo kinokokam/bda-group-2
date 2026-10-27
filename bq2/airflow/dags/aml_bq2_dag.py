@@ -32,14 +32,22 @@ def sql(name: str) -> str:
 
 # ---- monitoring task bodies (fill in; each pulls its slice from S3/Athena) ----
 def replay_slice(**ctx):
-    """Copy the next simulated hour of HI-Small into raw/stream/slice=<ts>/.
-    The slice id is the DAG run's logical date mapped onto 1–10 Sep 2022."""
-    raise NotImplementedError
+    """Return the next slice id (pushed to XCom). Local mode: slices are pre-cut into out/stream/
+    by `python -m monitoring.replay build`; the cursor in out/stream/_cursor.json moves one slice per run."""
+    from airflow.exceptions import AirflowSkipException
+    from monitoring.replay import next_slice
+    sid = next_slice()
+    if sid is None:
+        raise AirflowSkipException("end of replay")
+    return sid
 
 
 def run_checks(check: str, **ctx):
-    """Load the slice + baseline, call monitoring.checks.check_<check>, push the result dict to XCom."""
-    raise NotImplementedError
+    """Push one check's result dict to XCom. monitoring.run.run_checks runs all four on the slice
+    (curate, score with the live model, check) and caches nothing between tasks, so each task reruns it."""
+    from monitoring.run import run_checks as run_all
+    sid = ctx["ti"].xcom_pull(task_ids="replay_slice")
+    return next(r for r in run_all(sid, write=check == "anomaly")["results"] if r["check"] == check)
 
 
 def choose_path(**ctx):
@@ -50,13 +58,19 @@ def choose_path(**ctx):
 
 
 def agent_triage(**ctx):
-    """Call agent.triage_agent.triage(...) and write marts/agent/<slice>.json."""
-    raise NotImplementedError
+    """Agent note for the slice (out/monitor/notes/<slice>.json); reads the checks file score_and_anomaly wrote.
+    The alert is left to send_alert."""
+    from monitoring.run import triage_slice
+    return triage_slice(ctx["ti"].xcom_pull(task_ids="replay_slice"), alert=False)
 
 
 def send_alert(**ctx):
-    """Email the team when the agent's severity is 'high'."""
-    raise NotImplementedError
+    """Log the agent's note to out/alerts.log when its severity is 'high' (email in a real deployment)."""
+    from monitoring.alerts import send_alert as log_alert
+    ti = ctx["ti"]
+    note = ti.xcom_pull(task_ids="agent_triage")
+    path = ti.xcom_pull(task_ids="gate")        # the branch it chose: build_marts or quarantine
+    return log_alert(note, path) if note else False
 
 
 default_args = {"retries": 1, "retry_delay": timedelta(minutes=1)}
@@ -73,7 +87,7 @@ with DAG(
     # ------------------------- batch: steps 2–7 -------------------------
     parse_patterns = LambdaInvokeFunctionOperator(
         task_id="parse_patterns", function_name="parse_patterns",
-        payload=f'{{"bucket": "{BUCKET}", "key": "raw/patterns/HI-Small_Patterns.txt"}}')
+        payload=f'{{"bucket": "{BUCKET}", "key": "raw/patterns/HI_Small_Patterns.txt"}}')
     fetch_fx = LambdaInvokeFunctionOperator(task_id="fetch_fx", function_name="fetch_fx", payload="{}")
     curated = AthenaOperator(task_id="curated_transactions", query=sql("02_curated_transactions.sql"),
                              database=DB, output_location=ATHENA_OUT)
