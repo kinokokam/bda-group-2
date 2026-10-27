@@ -60,3 +60,6 @@ target/
 
 # --- local working notes ---
 bq1/todo.md
+
+# --- claude code local config ---
+.claude/

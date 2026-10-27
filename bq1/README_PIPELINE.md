@@ -221,7 +221,147 @@ account features, scores each record with the artifacts in `model/`, writes
 alerts back to MSK and scored rows to an Iceberg table in the Glue catalog.
 Requires Pipeline A to have completed.
 
-The commands are documented once, in the root [README](../README.md#running-it),
-so the two do not drift. In short: `pipeline.sh setup` once, then per session
-`pipeline.sh predemo`, the `aml_bq1_demo` Airflow DAG, and
-`pipeline.sh teardown`.
+Run every command from the repository root. Assumes
+`aws configure --profile bda` has been done once and `.env` is filled in.
+
+### 6.1 Running a demo — three commands
+
+```bash
+./bq1/scripts/pipeline.sh predemo     # ~30 min, well before presenting
+./bq1/scripts/pipeline.sh demo        # 3 min, when ready
+./bq1/scripts/pipeline.sh teardown    # ~5 min, afterwards
+```
+
+`demo` will not work without `predemo` first: that is what pushes the new
+broker addresses into the replay Lambda and creates this run's topics.
+
+To rehearse again, leave the cluster up and run:
+
+```bash
+./bq1/scripts/pipeline.sh redemo      # wipe last run, then predemo + demo
+```
+
+With MSK already running, `predemo` only restarts the job, so a retry takes
+about five minutes rather than thirty. Leaving the cluster up between
+rehearsals costs 11.6 ¢/hour against 29 minutes to rebuild it, so tear down
+only when finished for the day.
+
+### 6.2 Setup — already done, do not run again
+
+Ran 27 October 2026. Both snapshots exist and survive teardown:
+
+| snapshot | status | holds |
+| --- | --- | --- |
+| `warmup-7d` | `READY` | account history, 1–8 September |
+| `pre-demo` | `READY` | account history up to 10 September 11:00 |
+
+```bash
+# ./bq1/scripts/pipeline.sh setup     # already done — leave it alone
+```
+
+Rerunning costs about seven hours and no part of a demo needs it. The only
+reason to repeat it is a change to the feature code, after which the snapshot's
+account state would no longer match the code reading it.
+
+What it did: builds and uploads both packages, provisions the infrastructure,
+reads 1–8 September from S3 to build every account's rolling history, snapshots
+that as `warmup-7d`, then reads on to 10 September 11:00 so the Iceberg table
+holds real scored history, and snapshots that as `pre-demo`.
+
+Measured rather than estimated: warm-up is 3,731,672 records over about five
+and a half hours, backfill 1,241,719 over eighty minutes. Throughput falls from
+roughly 280 records a second to 100 as keyed state fills, which is why warm-up
+dominates. Warm-up skips the model entirely — it only needs account history —
+and writes nothing to the gold table.
+
+Neither phase touches MSK: both read S3 directly and run with the Kafka sinks
+switched out of the job graph, so the cluster can stay destroyed throughout.
+`provision` still creates it, since it is one Terraform apply.
+
+### 6.3 What each command does
+
+**`predemo`** rebuilds the MSK cluster, points the application at its new
+brokers, writes this run's id to `build/run-id.txt`, creates the three topics,
+and starts Flink restored from `pre-demo`. It returns once the job is
+`RUNNING` and waiting. The cluster takes 25–30 minutes from cold.
+
+**`demo`** replays 10 September 11:00–13:00 — 16,098 transactions, 66 of them
+laundering — at 40× speed, so roughly three minutes. Trigger the `aml_bq1_demo`
+DAG in Airflow at `http://localhost:8080` for the same effect.
+
+Measured 27 October: 16,098 sent, 16,098 consumed, 16,098 scored, no loss at
+any hop; 126 alerts, 35 of the 66 laundering transactions caught. Precision
+27.8%, recall 53.0%, lift 68× against a 0.41% base rate.
+
+Iceberg commits at each checkpoint, so rows are queryable in Athena while the
+replay is still running, and a forced stop costs only the uncommitted tail. The
+replay call is synchronous for the full three minutes; `replay()` sets
+`--cli-read-timeout 900` because the CLI's 60-second default times out and
+retries, which publishes the window twice.
+
+**`teardown`** wipes this run's scored rows from the gold table, reading the run
+id `predemo` recorded, then destroys the two hourly-billed resources. It deletes
+only that run, so the backfill history stays and rehearsals never pile up.
+
+### 6.4 What a demo costs
+
+| | Cost while it exists | Teardown |
+| --- | --- | --- |
+| MSK cluster, 2 × `kafka.t3.small` | 11.6 ¢/hour | destroyed |
+| Glue interface VPC endpoint | about 2 ¢/hour | destroyed |
+| Flink application and its snapshots | nothing while stopped | **kept** |
+| Replay Lambda | per invocation only | **kept** |
+| VPC, subnets, security groups, IAM roles, log groups | nothing | kept |
+| Glue database, Athena workgroup | nothing | kept |
+| S3 — `bronze/`, `model/`, `artifacts/`, `gold/` | about 0.1 ¢/day | kept |
+
+A *running* Flink application costs about 27.6 ¢/hour: Managed Flink bills two
+KPUs at 13.8 ¢ each, one for the job and one for the coordinator. Stop it when a
+phase finishes rather than leaving it idle — a job left running after it had
+drained cost about $4.50 overnight on 26 October.
+
+A stopped application is free. `KPU-Hour` and `RunningApplicationStorage` both
+bill against allocated KPUs and a stopped application allocates none;
+`DurableApplicationBackups` bills $0.0000 per day for our 42 MB of snapshots.
+These rates come from this account's own bill, not a list price.
+
+The Glue endpoint is not optional while the gold sink is Iceberg: Flink runs in
+private subnets with no NAT, so the catalog has no other route to the Glue API.
+
+**Never run a bare `terraform destroy` in `infra/`.** Snapshots belong to the
+Flink application, so destroying it destroys them, and Managed Flink offers no
+export — a lost `warmup-7d` means replaying 1–8 September again. The `-target`
+flags in `teardown` are what keep the application out of scope.
+
+### 6.5 Settings and individual steps
+
+Settings live in [`scripts/config.sh`](scripts/config.sh).
+
+| Variable | Meaning |
+| --- | --- |
+| `WARMUP_START`, `BACKFILL_START` | Phase boundaries; the 7-day mark is where scores become trustworthy |
+| `START`, `END` | The demo window |
+| `GOLD_FROM` | Records before this are scored but kept out of the gold table |
+| `SPEED` | Simulated seconds per real second; `40` sends two hours in three minutes |
+| `GOLD_MODE` | `iceberg` or `files` |
+| `CHUNK_HOURS` | Replay chunk size for the MSK fallback path |
+
+`setup` is a wrapper; `build`, `provision`, `deploy`, `warmup`, `backfill` and
+`run` can each be run alone. `wipe <run_id>` deletes one run's rows with Athena
+SQL — never delete gold files from S3 directly, as the table tracks them in
+metadata and queries then fail on missing files. `warmup-kafka` and
+`backfill-kafka` do the bulk phases through MSK instead of reading S3.
+
+### 6.6 Checking results
+
+```sql
+SELECT count(*) AS scored,
+       count_if(is_alert) AS alerts,
+       sum(label) AS laundering,
+       count_if(is_alert AND label = 1) AS caught
+FROM aml_bq1_catalog.scored
+WHERE run_id = '<the run id predemo printed>';
+```
+
+Because Iceberg commits every checkpoint, this can be run while the replay is
+still going and the numbers climb as it works.
