@@ -250,15 +250,20 @@ is in [`bq2/docs/Laundering_Exposure_Plan.html`](bq2/docs/Laundering_Exposure_Pl
 
 ## Getting started
 
+Dependencies are managed with [uv](https://docs.astral.sh/uv/); `pyproject.toml`
+is the single source of truth and `uv.lock` pins the resolved versions.
+
 ```bash
-# 1. Python deps for local work
-python -m pip install -r requirements.txt
+# 1. Python deps for local work — pick the groups you need
+uv sync --group bq1                         # replay, Flink packaging, dashboard
+uv sync --group bq2                         # Spark ETL, training, marts, agent
+uv sync --group airflow                     # only to run Airflow outside Docker
 
 # 2. Get the data (asks for your Kaggle API key the first time)
-python3 bq2/scripts/download_aml.py         # → ~/aml_data/
+uv run bq2/scripts/download_aml.py          # → ~/aml_data/
 
 # 3. Profile and create the cleaned local copy everyone codes against
-python3 bq2/scripts/profile_aml.py --data-dir ~/aml_data --out-dir ~/aml_data/aml_out
+uv run bq2/scripts/profile_aml.py --data-dir ~/aml_data --out-dir ~/aml_data/aml_out
 
 # 4. AWS: use your own named profile, never keys in code
 cp .env.example .env                        # fill in, never commit .env
