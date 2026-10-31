@@ -309,6 +309,7 @@ only that run, so the backfill history stays and rehearsals never pile up.
 | --- | --- | --- |
 | MSK cluster, 2 × `kafka.t3.small` | 11.6 ¢/hour | destroyed |
 | Glue interface VPC endpoint | about 2 ¢/hour | destroyed |
+| Dashboard EC2, `t3.small` (only if `dashboard_allowed_cidr` is set) | about 3 ¢/hour | destroyed |
 | Flink application and its snapshots | nothing while stopped | **kept** |
 | Replay Lambda | per invocation only | **kept** |
 | VPC, subnets, security groups, IAM roles, log groups | nothing | kept |
@@ -365,3 +366,16 @@ WHERE run_id = '<the run id predemo printed>';
 
 Because Iceberg commits every checkpoint, this can be run while the replay is
 still going and the numbers climb as it works.
+
+### 6.7 Dashboard
+
+A Streamlit app in [`frontend/`](../frontend/README.md) shows the gold table to
+an analyst: an overview of what is waiting, the alert queue ranked by score with
+each alert's reasons and account history, and a watch-list of repeat senders.
+None of those pages uses the laundering labels; a separate model performance
+page does. It reads through Athena and never writes.
+
+Locally: `AWS_PROFILE=bda uv run streamlit run frontend/app.py`. On EC2: set
+`dashboard_allowed_cidr` in `infra/terraform.tfvars` to your address, and
+`predemo` builds the instance and prints its URL; `teardown` destroys it. With
+the variable empty, `predemo` and `teardown` behave exactly as before.

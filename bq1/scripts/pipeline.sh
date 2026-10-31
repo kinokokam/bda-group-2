@@ -261,6 +261,29 @@ with zipfile.ZipFile('../replay.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
     echo
     echo "--- paste into .env ---"
     terraform output -raw env_file_block
+    url=$(terraform output -raw dashboard_url)
+    echo
+    echo "dashboard: ${url:-not deployed (set dashboard_allowed_cidr in infra/terraform.tfvars)}"
+    ;;
+
+  dashboard-build)
+    rm -f "$ARTIFACTS/dashboard.zip"
+    python - "$ARTIFACTS/dashboard.zip" <<'PY'
+import pathlib, sys, zipfile
+with zipfile.ZipFile(sys.argv[1], "w", zipfile.ZIP_DEFLATED) as archive:
+    for path in sorted(pathlib.Path("frontend").rglob("*")):
+        if path.is_file() and "__pycache__" not in path.parts:
+            archive.write(path, path.as_posix())
+PY
+    aws s3 cp "$ARTIFACTS/dashboard.zip" "s3://$BUCKET/artifacts/dashboard.zip" --only-show-errors
+    echo "uploaded s3://$BUCKET/artifacts/dashboard.zip"
+    ;;
+
+  dashboard-redeploy)
+    "$0" dashboard-build
+    (cd infra && terraform apply -input=false -auto-approve -target aws_instance.dashboard \
+      -var deploy_lambda=true -var deploy_flink=true -var deploy_glue_endpoint=true)
+    echo "dashboard: $(cd infra && terraform output -raw dashboard_url) (allow a few minutes to install)"
     ;;
 
   deploy)
@@ -339,6 +362,7 @@ with zipfile.ZipFile('../replay.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
     ;;
 
   predemo)
+    "$0" dashboard-build
     "$0" provision
     run_id=$(date +%Y%m%d-%H%M)
     echo "$run_id" > "$ARTIFACTS/run-id.txt"
@@ -379,8 +403,8 @@ with zipfile.ZipFile('../replay.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
     fi
 
     (cd infra && terraform destroy -input=false -auto-approve \
-      -target aws_msk_cluster.main -target aws_vpc_endpoint.glue)
-    echo "cluster gone; backfill history, both snapshots, the Lambda, the network and S3 kept"
+      -target aws_msk_cluster.main -target aws_vpc_endpoint.glue -target aws_instance.dashboard)
+    echo "cluster and dashboard gone; backfill history, both snapshots, the Lambda, the network and S3 kept"
     ;;
 
   wipe)
@@ -410,6 +434,7 @@ with zipfile.ZipFile('../replay.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
     echo "usage: $0 {setup|predemo|demo|teardown} normal use, in that order
            $0 redemo  wipe the last run, then predemo and demo again
            {build|provision|deploy|warmup|backfill|run|smoke|stop|wipe} individual steps
+           {dashboard-build|dashboard-redeploy} package the dashboard, or replace its instance
            {warmup-kafka|backfill-kafka} replay through MSK instead of reading S3" >&2
     exit 1
     ;;
