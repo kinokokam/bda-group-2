@@ -2,7 +2,7 @@
 Live monitoring checks run on every replayed slice (Live monitoring tab of the plan).
 
 Each check returns a dict with at least {"check", "status", ...numbers}.
-status is one of "pass", "warn", "fail". The Airflow gate decides from these alone;
+status is "pass" or "fail"; there is no warning level. The Airflow gate decides from these alone;
 the Claude agent only explains them.
 
 Pure pandas / numpy so the same code runs in a notebook, a test, or an Airflow task.
@@ -21,7 +21,7 @@ KNOWN_FORMATS = {"ACH", "Bitcoin", "Cash", "Cheque", "Credit Card", "Reinvestmen
 KEY_COLUMNS = ["ts", "from_bank", "from_account", "to_bank", "to_account",
                "amount_paid", "payment_currency", "payment_format", "is_laundering"]
 AMOUNT_BANDS = [0, 100, 1_000, 10_000, 50_000, 100_000, 1_000_000, np.inf]
-PSI_WARN, PSI_FAIL = 0.10, 0.25          # common rule of thumb for PSI
+PSI_FAIL = 0.25                          # common rule of thumb for PSI
 
 
 # --------------------------------------------------------------------------- #
@@ -82,13 +82,9 @@ def psi(expected: pd.Series, actual: pd.Series, eps: float = 1e-4) -> float:
     return float(((a - e) * np.log(a / e)).sum())
 
 
-def _status(value: float) -> str:
-    return "fail" if value > PSI_FAIL else "warn" if value > PSI_WARN else "pass"
-
-
 def check_drift(baseline: pd.DataFrame, slice_df: pd.DataFrame,
                 score_col: str | None = "score") -> dict:
-    """baseline = same hour on normal weekdays (2–9 Sep, not 1 Sep month-start)."""
+    """baseline = the other normal days of the slice's kind (see run.normal_days)."""
     amt = "amount_paid_usd" if "amount_paid_usd" in slice_df else "amount_paid"
     metrics = {
         "psi_payment_format": psi(baseline["payment_format"].value_counts(),
@@ -103,7 +99,7 @@ def check_drift(baseline: pd.DataFrame, slice_df: pd.DataFrame,
         metrics["psi_model_score"] = psi(pd.cut(baseline[score_col], bins, include_lowest=True).value_counts(),
                                          pd.cut(slice_df[score_col], bins, include_lowest=True).value_counts())
     worst = max(metrics, key=metrics.get)
-    return {"check": "drift", "status": _status(metrics[worst]), "worst_metric": worst,
+    return {"check": "drift", "status": "fail" if metrics[worst] > PSI_FAIL else "pass", "worst_metric": worst,
             **{k: round(v, 3) for k, v in metrics.items()}}
 
 
@@ -141,5 +137,5 @@ def check_anomaly(slice_df: pd.DataFrame, baseline_volume: pd.Series,
 
 
 def gate(results: list[dict]) -> str:
-    """Pass only if nothing failed. Warnings pass but go to the agent for a note."""
+    """Pass only if nothing failed."""
     return "fail" if any(r["status"] == "fail" for r in results) else "pass"
