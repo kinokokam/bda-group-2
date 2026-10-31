@@ -1,4 +1,4 @@
-# Agent handover: Qiaoye's lane, status as of 26 Oct 2026
+# Agent handover: Qiaoye's lane, status as of 26 Oct 2026 (git, P2 and marts updated 1 Nov)
 
 **Who you work for:** Qiaoye. Qiaoye's lane is the XGBoost notebook, the Airflow DAG, the four checks, the Claude triage agent and the monitor page. As of 23 Oct the dashboard is Helical Insight, which also hosts the monitor page and the AI chat.
 
@@ -15,17 +15,16 @@
 
 ## 0. Where the work is (git)
 
-- Everything is merged into the local `main`. The latest commit is `11ac944`; `qiaoye/p3-live-monitor` holds the same commits.
-- **Nothing is pushed.** ShopBack policy allows pushes from this laptop only to `gitlab.com/shopback`. `origin` points to `kinokokam/bda-group-2`, a personal GitHub repo. Don't push to it or help move the work off this laptop; Qiaoye is asking IT.
-- **Qiaoye asked to stop committing on this laptop (24 Oct).** Leave new changes uncommitted unless Qiaoye says otherwise.
-- `out/` is git-ignored. It holds the replay slices, the live model, checks, notes and the alert log.
+- **Updated 1 Nov (new laptop).** All the earlier `qiaoye/*` work is merged into GitHub `main`. Ryan's 27 Oct reorganisation moved BQ2 code and docs under `bq2/`.
+- **Git rule (1 Nov):** the agent commits on `qiaoye/*` branches only. Qiaoye pushes and opens PRs; the agent never pushes, and nothing goes straight to `main`.
+- `bq2/out/` is git-ignored: replay slices, the live model, checks, notes and the alert log. The old laptop's `out/` was lost; S3 is now the source of truth (`AGENT_CONTEXT.md` §10.17).
 
 ## 1. Done
 
 | # | Item | Where | State |
 |---|---|---|---|
 | P1 | XGBoost notebook, Experiment A vs B | `notebooks/aml_xgboost.ipynb`, `out/model/` | Done. A PR-AUC 0.170, B 0.236 (test 8–10 Sep). Result tables uploaded to `s3://aml-bq2/marts/model/` on 19 Oct (CSVs only). |
-| P2 | Monitoring hand-off | `out/live_model/` | Done, replaced by the live model: `scripts/train_live_model.py`, threshold 0.953147 (top 0.5% of 7 Sep). |
+| P2 | Monitoring hand-off | `bq2/out/live_model/`, `s3://aml-bq2/monitor/live_model/` | Done, replaced by the live model: `scripts/train_live_model.py`, threshold 0.953098 (top 0.5% of 7 Sep). Retrained 1 Nov on XGBoost 3.4.1. |
 | P3 | Replay | `monitoring/replay.py`, `tests/test_replay.py` | Built **hourly** (241 slices). Needs the switch to daily (§2). |
 | P4 | Curate, score, four checks, gate | `monitoring/curate.py`, `features.py`, `run.py`, `checks.py`, `tests/test_demo_cases.py` | Built. Needs pass/fail only and daily baselines (§2). |
 | P5 | Triage agent | `agent/triage_agent.py`, `tests/test_agent.py` | Built: `FakeLLM`, token usage, verdict definitions, `BEDROCK_REGION`. Needs "no agent when every check passes" (§2). |
@@ -60,7 +59,7 @@ Expected after the switch: 2 failing slices (1 Sep, month-start batch, and 11 Se
 ## 4. Open questions for Qiaoye
 
 1. When to tell Neeharika and the team that Helical replaces the planned dashboard.
-2. Who builds the five remaining Athena marts (`currency_risk`, `bank_concentration`, `corridors`, `amount_hour`, `typology_profile`); only `channel_lift.sql` exists, and it has not been run. Helical's analysis pages need them.
+2. ~~Who builds the five remaining Athena marts~~ Resolved 1 Nov: cnvltdfx wrote them (PRs #1 and #2), and all six were run in Athena. Tell cnvltdfx they're built, and that `bank_concentration`'s header numbers need updating (§10.17).
 3. Whether to send Owen the note about the five curated-pipeline fixes (drafted 19 Oct; Qiaoye sends it).
 4. Where the code can be pushed (waiting on IT).
 
@@ -73,7 +72,7 @@ Expected after the switch: 2 failing slices (1 Sep, month-start batch, and 11 Se
 ## 6. Rules
 
 - **Credentials:** never open, copy or print credential files or `.env`. AWS access only through `--profile aml-bq2`. Qiaoye creates the separate AWS folder for the Helical container.
-- **Git:** no pushes from this laptop except to `gitlab.com/shopback`, never to `main`/`master`. Currently: no commits either, until Qiaoye says so.
+- **Git:** the agent commits on `qiaoye/*` branches and never pushes; Qiaoye pushes and opens PRs. Never straight to `main`/`master`.
 - **No data in git.** Clear notebook outputs before committing.
 - **No paid AWS resources** (EC2, Glue, SageMaker, MWAA) without asking.
 - **Numbers:** quote only measured numbers and say where each came from.

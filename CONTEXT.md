@@ -66,6 +66,10 @@ _Avoid_: batch, hour (slices were hourly until 26 Oct)
 **Check**:
 One of four tests a slice must pass: recon, quality, drift or anomaly. Each result is pass or fail; there is no warning level.
 
+**Normal day**:
+A day the monitor compares slices against: the weekdays 2 and 5–9 Sep, and the weekend days 3–4 Sep. A slice is compared only with the other normal days of its kind, never with its own day.
+_Avoid_: baseline day, reference day
+
 **Gate**:
 The rule that accepts a slice only if every check passes. It is code, never the agent.
 
