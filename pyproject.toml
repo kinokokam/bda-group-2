@@ -48,3 +48,7 @@ dev = [
 
 [tool.uv]
 default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+# BQ2 code lives under bq2/ and imports itself as monitoring.*, agent.*
+pythonpath = ["bq2"]

@@ -81,6 +81,10 @@ _Avoid_: reject, drop
 The agent's short explanation of a failed slice: severity, verdict (expected, data issue or investigate), summary and suggested action. A slice that passes every check gets no note.
 _Avoid_: AI summary, report
 
+**Escalation**:
+A high-severity triage note passed on to the risk team. It is shown on the dashboard.
+_Avoid_: alert (an alert is a flagged transfer)
+
 **Snapshot**:
 The local copy of the S3 data, result tables, checks and triage notes that the dashboard reads. S3 stays the source of truth.
 _Avoid_: cache, extract
