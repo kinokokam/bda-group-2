@@ -3,7 +3,8 @@
 -- hours from first to last hop, USD moved. Then summarised per scheme.
 -- Unstructured laundering has no attempts, so it is not a card here.
 -- Note: the 1–10 Sep filter cuts off hops of attempts that run into the tail, as everywhere else.
--- Expect gather-scatter ≈ 6 days across ≈ 15 accounts; bipartite within a day.
+-- Measured on 1–10 Sep (31 Oct): gather-scatter median ≈ 75 h across 5 accounts; bipartite ≈ 24 h;
+-- stack has the most accounts (median 15.5). usd_per_hop is a mean and outlier-driven; use the median.
 
 CREATE TABLE aml_bq2.mart_typology_profile
 WITH (
@@ -44,7 +45,8 @@ mix AS (
     100.0 * count(*) FILTER (WHERE payment_format = 'Cash')        / count(*) AS pct_cash,
     100.0 * count(*) FILTER (WHERE payment_format = 'Bitcoin')     / count(*) AS pct_bitcoin,
     100.0 * sum(is_cross_bank) / count(*)                 AS pct_cross_bank,
-    sum(amount_paid_usd) / count(*)                       AS usd_per_hop
+    sum(amount_paid_usd) / count(*)                       AS usd_per_hop,
+    approx_percentile(amount_paid_usd, 0.5)               AS median_usd_per_hop
   FROM s
   GROUP BY pattern
 )
@@ -60,11 +62,12 @@ SELECT
   approx_percentile(att.usd_moved, 0.5)                   AS median_usd_per_attempt,
   sum(att.usd_moved)                                      AS total_usd,
   mix.usd_per_hop,
+  mix.median_usd_per_hop,
   approx_percentile(att.sending_banks, 0.5)               AS median_sending_banks,
   mix.pct_ach, mix.pct_cheque, mix.pct_credit_card, mix.pct_cash, mix.pct_bitcoin,
   mix.pct_cross_bank
 FROM att
 JOIN acct ON acct.attempt_id = att.attempt_id
 JOIN mix  ON mix.pattern = att.pattern
-GROUP BY att.pattern, mix.transfers, mix.usd_per_hop, mix.pct_ach, mix.pct_cheque,
+GROUP BY att.pattern, mix.transfers, mix.usd_per_hop, mix.median_usd_per_hop, mix.pct_ach, mix.pct_cheque,
          mix.pct_credit_card, mix.pct_cash, mix.pct_bitcoin, mix.pct_cross_bank;

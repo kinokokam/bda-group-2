@@ -1,7 +1,8 @@
 -- Mart · laundering lift by payment currency, by count and USD, with each currency's country risk.
 -- Joins currency_lookup directly (not the copy baked into curated_transactions), so filling in
 -- basel_score only needs the lookup re-uploaded, not the curated table rebuilt.
--- Expect Saudi Riyal ≈ 4.1× the average laundering rate.
+-- Expect Saudi Riyal ≈ 3.8× on count (1–10 Sep). lift_usd is outlier-driven: one Canadian Dollar
+-- transfer of ≈ US$16.3 billion is 61% of all laundering USD, so read lift_count first.
 
 CREATE TABLE aml_bq2.mart_currency_risk
 WITH (
@@ -14,7 +15,9 @@ WITH c AS (
     count(*)                                              AS txns,
     sum(is_laundering)                                    AS laundering_txns,
     sum(amount_paid_usd)                                  AS total_usd,
-    coalesce(sum(amount_paid_usd) FILTER (WHERE is_laundering = 1), 0) AS laundering_usd
+    coalesce(sum(amount_paid_usd) FILTER (WHERE is_laundering = 1), 0) AS laundering_usd,
+    approx_percentile(amount_paid_usd, 0.5) FILTER (WHERE is_laundering = 1) AS median_laundering_usd,
+    max(amount_paid_usd) FILTER (WHERE is_laundering = 1) AS max_laundering_usd
   FROM aml_bq2.curated_transactions
   WHERE txn_date <= '2022-09-10'
   GROUP BY payment_currency
@@ -28,6 +31,8 @@ SELECT
   c.laundering_txns,
   c.total_usd,
   c.laundering_usd,
+  c.median_laundering_usd,
+  c.max_laundering_usd,
   100.0 * c.laundering_txns / c.txns                     AS laundering_rate_pct,
   (CAST(c.laundering_txns AS DOUBLE) / sum(c.laundering_txns) OVER ())
     / (CAST(c.txns AS DOUBLE) / sum(c.txns) OVER ())      AS lift_count,
