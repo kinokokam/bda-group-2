@@ -52,6 +52,8 @@ A demo is three commands from the repository root:
 ./bq1/scripts/pipeline.sh teardown    # ~5 min, afterwards
 ```
 
+The analyst dashboard is in [`frontend/`](frontend/README.md).
+
 `setup` has already been run and must not be repeated; the snapshots it built
 survive teardown. BQ2 scripts run from `bq2/`, which is what puts `monitoring/`
 and `agent/` on the import path.

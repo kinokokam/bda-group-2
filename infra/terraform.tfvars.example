@@ -10,3 +10,7 @@ deploy_flink  = false
 # MSK rejects public access at creation. Leave false on the first apply, then
 # set true and apply again once the cluster exists.
 enable_msk_public_access = false
+
+# Streamlit dashboard. Set to your own address (curl https://checkip.amazonaws.com,
+# then add /32) to create it; leave empty to skip it.
+dashboard_allowed_cidr = ""

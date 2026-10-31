@@ -86,3 +86,35 @@ variable "deploy_glue_endpoint" {
   type        = bool
   default     = false
 }
+
+variable "dashboard_allowed_cidr" {
+  description = <<-EOT
+    Address allowed to open the Streamlit dashboard, such as "203.0.113.7/32".
+    Empty means no dashboard is created. Streamlit has no login, so keep this
+    to your own address; re-apply when it changes, which updates in seconds.
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.dashboard_allowed_cidr == "" || can(cidrhost(var.dashboard_allowed_cidr, 0))
+    error_message = "dashboard_allowed_cidr must be a CIDR block such as 203.0.113.7/32, or empty."
+  }
+}
+
+variable "dashboard_instance_type" {
+  type    = string
+  default = "t3.small"
+}
+
+variable "dashboard_zip_key" {
+  description = "S3 key of the dashboard package that pipeline.sh dashboard-build uploads."
+  type        = string
+  default     = "artifacts/dashboard.zip"
+}
+
+variable "dashboard_packages" {
+  description = "Pinned to the versions in uv.lock, so EC2 runs what was tested locally."
+  type        = string
+  default     = "streamlit==1.66.0 boto3==1.43.116 pandas==3.0.6"
+}

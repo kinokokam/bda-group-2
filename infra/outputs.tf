@@ -34,3 +34,8 @@ output "env_file_block" {
     ATHENA_WORKGROUP=${var.prefix}
   ENV
 }
+
+output "dashboard_url" {
+  description = "Streamlit dashboard; empty unless dashboard_allowed_cidr is set. Allow a few minutes after apply for it to install."
+  value       = local.deploy_dashboard ? "http://${aws_instance.dashboard[0].public_ip}:8501" : ""
+}
