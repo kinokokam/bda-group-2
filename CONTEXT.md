@@ -64,7 +64,7 @@ One simulated day of transfers. The monitor replays them one at a time, 1–10 S
 _Avoid_: batch, hour (slices were hourly until 26 Oct)
 
 **Check**:
-One of four tests a slice must pass: recon, quality, drift or anomaly. Each result is pass or fail; there is no warning level.
+One of four tests a slice must pass: recon, quality, drift or volume. Each result is pass or fail; there is no warning level. The checks judge whether a day's data can be trusted, not who is laundering.
 
 **Normal day**:
 A day the monitor compares slices against: the weekdays 2 and 5–9 Sep, and the weekend days 3–4 Sep. A slice is compared only with the other normal days of its kind, never with its own day.

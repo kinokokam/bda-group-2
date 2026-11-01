@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from monitoring.checks import check_drift
+from monitoring.checks import check_drift, check_volume
 from monitoring.run import normal_days
 
 
@@ -36,3 +36,27 @@ def test_drift_is_pass_or_fail_only(ach, status):
 ])
 def test_a_day_is_compared_with_the_other_normal_days_of_its_kind(day, compared_with):
     assert normal_days(day) == compared_with
+
+
+NORMAL_VOLUME = pd.Series([480_000, 482_000, 484_000, 650_000, 750_000])     # five normal weekdays
+
+
+def scored(rows: int, bank_flags: int = 0) -> pd.DataFrame:
+    """rows transfers; the first bank_flags are flagged and all sent by one bank."""
+    return pd.DataFrame({"score": [0.99] * bank_flags + [0.1] * (rows - bank_flags),
+                         "from_bank": ["0210575"] * rows, "is_laundering": [0] * rows})
+
+
+@pytest.mark.parametrize("rows, status", [
+    (520_000, "pass"),    # about the normal mean
+    (950_000, "fail"),    # mean 569,200, spread 111,400: 3.42 spreads above
+    (400, "fail"),        # nearly empty, like the 11 Sep tail
+])
+def test_volume_fails_beyond_three_spreads(rows, status):
+    assert check_volume(scored(rows), NORMAL_VOLUME, score_threshold=0.95)["status"] == status
+
+
+def test_flags_piling_up_at_one_bank_do_not_fail_the_day():
+    """The per-day hot-bank rule was dropped on 1 Nov: it flagged 6-9 transfers out of thousands."""
+    out = check_volume(scored(520_000, bank_flags=500), NORMAL_VOLUME, score_threshold=0.95)
+    assert out["status"] == "pass" and out["flagged"] == 500

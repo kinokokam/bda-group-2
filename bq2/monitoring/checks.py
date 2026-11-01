@@ -104,35 +104,25 @@ def check_drift(baseline: pd.DataFrame, slice_df: pd.DataFrame,
 
 
 # --------------------------------------------------------------------------- #
-# 4. Anomaly: model scores and volume against the baseline
+# 4. Volume: how many transfers, against the normal days
 # --------------------------------------------------------------------------- #
-def check_anomaly(slice_df: pd.DataFrame, baseline_volume: pd.Series,
-                  baseline_bank_share: pd.Series, score_threshold: float,
-                  z_fail: float = 3.0, min_bank_flags: int = 6, min_rel_std: float = 0.10) -> dict:
+def check_volume(slice_df: pd.DataFrame, baseline_volume: pd.Series, score_threshold: float,
+                 z_fail: float = 3.0, min_rel_std: float = 0.10) -> dict:
     """
-    slice_df needs a 'score' column from the XGBoost model.
-    baseline_volume: transfers per slice for comparable slices (same hour, same day type).
-    baseline_bank_share: each sending bank's normal share of top-scored transfers.
-    score_threshold: the alert threshold (top 0.5% of scores on a day the model did not fit on).
-    min_bank_flags: a bank is hot only with at least this many flags in the slice. On the
-        baseline hours no bank ever had more than 5, so one or two flags at a rarely flagged
-        bank (a huge but meaningless lift) can't fail the slice.
-    min_rel_std: floor on the volume spread, as a share of the baseline mean. The weekend baseline
-        has only two days (3-4 Sep), whose spread can be a handful of transfers; weekdays vary ~22%.
+    baseline_volume: transfers per day on the normal days the slice is compared with.
+    score_threshold: the alert threshold; the day's alert count is reported, never judged.
+    min_rel_std: floor on the volume spread, as a share of the baseline mean. A weekend day is
+        compared with a single other weekend day, whose spread is zero.
+    The hourly version also failed a slice for a "hot bank" (6+ alerts and 5x its normal share).
+    Dropped 1 Nov: over a whole day it fired on 10 of 11 days for 6-9 alerts out of thousands.
     """
     n = len(slice_df)
     spread = max(baseline_volume.std(ddof=0), min_rel_std * baseline_volume.mean(), 1.0)
     vol_z = float((n - baseline_volume.mean()) / spread)
-    flagged = slice_df[slice_df["score"] >= score_threshold]
-    counts = flagged["from_bank"].value_counts()
-    share = counts / max(len(flagged), 1)
-    lift = (share / baseline_bank_share.reindex(share.index).fillna(share.min() / 10)).sort_values(ascending=False)
-    hot_banks = lift[(lift > 5) & (counts.reindex(lift.index) >= min_bank_flags)].head(5).round(1).to_dict()
     laundering_rate = float(slice_df["is_laundering"].mean()) if "is_laundering" in slice_df else None
-    bad = abs(vol_z) > z_fail or bool(hot_banks)
-    return {"check": "anomaly", "status": "fail" if bad else "pass",
-            "rows": n, "volume_z": round(vol_z, 2), "flagged": int(len(flagged)),
-            "hot_banks_lift": hot_banks,
+    return {"check": "volume", "status": "fail" if abs(vol_z) > z_fail else "pass",
+            "rows": n, "normal_rows": round(float(baseline_volume.mean())), "volume_z": round(vol_z, 2),
+            "flagged": int((slice_df["score"] >= score_threshold).sum()),
             "laundering_rate_pct": None if laundering_rate is None else round(100 * laundering_rate, 2)}
 
 

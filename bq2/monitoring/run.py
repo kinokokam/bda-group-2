@@ -6,9 +6,9 @@ Run the four live checks on one replayed slice (local mode) and decide the gate.
 
 Per slice:
     raw slice (out/stream/)  ->  curate (dedup + FX join)  ->  score with the live model
-    ->  recon, quality, drift, anomaly  ->  gate (code, never the agent)
+    ->  recon, quality, drift, volume  ->  gate (code, never the agent)
 
-A slice is one day. Drift and anomaly compare it with the other normal days of its kind
+A slice is one day. Drift and volume compare it with the other normal days of its kind
 (normal_days): weekdays 2 and 5-9 Sep (1 Sep is month-start), weekends 3-4 Sep, never the slice's
 own day. The normal days are scored once and cached in out/live_model/baseline.parquet.
 """
@@ -104,14 +104,12 @@ def run_checks(sid: str, fx: pd.DataFrame | None = None, out_dir: Path = STREAM_
     base_day = base["ts"].dt.strftime("%Y-%m-%d")
     base_slice = base[base_day.isin(normal_days(sid))]
     base_volume = base_slice.groupby(base_day[base_slice.index]).size()
-    flagged = base_slice[base_slice["score"] >= threshold]
-    base_bank_share = flagged["from_bank"].value_counts(normalize=True)
 
     results = [
         {**checks.check_recon(raw.drop_duplicates(), scored), "duplicates_dropped": duplicates},
         checks.check_quality(scored, start, end),
         checks.check_drift(base_slice, scored),
-        checks.check_anomaly(scored, base_volume, base_bank_share, threshold),
+        checks.check_volume(scored, base_volume, threshold),
     ]
     gate = checks.gate(results)
     out = {"slice": sid, "gate": gate, "path": "build_marts" if gate == "pass" else "quarantine",
