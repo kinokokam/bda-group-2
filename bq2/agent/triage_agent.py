@@ -34,9 +34,11 @@ class Triage(BaseModel):
     suggested_action: str
 
 
-SYSTEM = """You are an anti-money-laundering data analyst reviewing one hourly slice of
-transactions that has just been checked by an automated pipeline.
-You receive the check results and some baseline facts as JSON.
+SYSTEM = """You are an anti-money-laundering data analyst reviewing one day of transactions
+that has just failed an automated pipeline's checks.
+You receive the check results and a report card as JSON: calendar facts, the normal days it was
+compared with, the day's top alerts (highest risk scores) and the biggest shifts in payment
+format and currency mix from the normal days.
 Rules:
 - Use only numbers that appear in the input, copied exactly. Never invent figures, and do not
   compute new ones (no "N times normal"); quote the given numbers side by side instead.
@@ -45,7 +47,7 @@ Rules:
     laundering. Only these signs count: recon failed (rows lost between raw and curated),
     quality failed (broken values), or facts.inside_simulation_window_1_to_10_sep is false
     (rows dated after the simulation ends are leftovers, however suspicious they look).
-    A failed drift or anomaly check, or the slice being quarantined, is not a sign by itself.
+    A failed drift or volume check, or the day being quarantined, is not a sign by itself.
   - "expected": the unusual numbers are explained by a calendar fact in the input. For
     example, facts.is_month_start is true and the top payment format is a batch format such
     as Reinvestment: that is the month-start batch, not laundering and not broken data.
@@ -130,7 +132,7 @@ if __name__ == "__main__":
         {"check": "recon", "status": "pass", "raw_rows": 396, "curated_rows": 396},
         {"check": "quality", "status": "pass", "bad_rows": 0},
         {"check": "drift", "status": "fail", "psi_payment_format": 8.8},
-        {"check": "anomaly", "status": "fail", "rows": 396, "laundering_rate_pct": 58.59},
+        {"check": "volume", "status": "fail", "rows": 396, "laundering_rate_pct": 58.59},
     ]
     example_facts = {"baseline_laundering_rate_pct": 0.1, "normal_weekday_rows": 482771,
                      "slice_ach_share_pct": 100, "first_scheme_hop_before_slice": True}

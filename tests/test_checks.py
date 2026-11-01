@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from monitoring.checks import check_drift, check_volume
-from monitoring.run import normal_days
+from monitoring.run import normal_days, slice_facts
 
 
 def transfers(ach: int, cheque: int) -> pd.DataFrame:
@@ -60,3 +60,25 @@ def test_flags_piling_up_at_one_bank_do_not_fail_the_day():
     """The per-day hot-bank rule was dropped on 1 Nov: it flagged 6-9 transfers out of thousands."""
     out = check_volume(scored(520_000, bank_flags=500), NORMAL_VOLUME, score_threshold=0.95)
     assert out["status"] == "pass" and out["flagged"] == 500
+
+
+def day(formats: dict, scores: list[float] | None = None) -> pd.DataFrame:
+    """A day of transfers: formats maps payment format -> count; scores default to 0.1."""
+    fmt = [f for f, n in formats.items() for _ in range(n)]
+    n = len(fmt)
+    return pd.DataFrame({"ts": pd.Timestamp("2022-09-01 09:30"), "from_bank": "010", "to_bank": "070",
+                         "payment_format": fmt, "payment_currency": "US Dollar",
+                         "amount_paid_usd": [100.0 + i for i in range(n)],
+                         "score": scores if scores is not None else [0.1] * n, "is_laundering": 0})
+
+
+def test_report_card_lists_the_top_alerts_and_the_biggest_shift_from_normal_days():
+    scores = [0.99, 0.97, 0.96] + [0.1] * 97
+    facts = slice_facts("2022-09-01", day({"Reinvestment": 70, "ACH": 20, "Cash": 10}, scores),
+                        day({"Reinvestment": 10, "ACH": 60, "Cash": 30}), pd.Series([100, 100]), score_threshold=0.95)
+    assert [a["score"] for a in facts["top_alerts"]] == [0.99, 0.97, 0.96]      # only flagged, highest first
+    assert facts["top_alerts"][0] == {"time": "09:30", "from_bank": "010", "to_bank": "070",
+                                      "payment_format": "Reinvestment", "payment_currency": "US Dollar",
+                                      "amount_usd": 100.0, "score": 0.99}
+    assert facts["biggest_shifts"][0] == {"what": "payment_format: Reinvestment",
+                                          "today_pct": 70.0, "normal_pct": 10.0}
