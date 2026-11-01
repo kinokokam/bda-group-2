@@ -120,10 +120,23 @@ def run_checks(sid: str, fx: pd.DataFrame | None = None, out_dir: Path = STREAM_
     return out
 
 
+def known_values_only(df: pd.DataFrame) -> pd.DataFrame:
+    """Payment formats and currencies off the known lists, and bank ids that aren't digits, become OTHER."""
+    df = df.copy()
+    for col, known in (("payment_format", checks.KNOWN_FORMATS), ("payment_currency", checks.KNOWN_CURRENCIES)):
+        df[col] = df[col].where(df[col].isin(known), "OTHER")
+    for col in ("from_bank", "to_bank"):
+        if col in df:
+            df[col] = df[col].where(df[col].astype(str).str.fullmatch(r"\d{1,10}"), "OTHER")
+    return df
+
+
 def slice_facts(sid: str, scored: pd.DataFrame, base_slice: pd.DataFrame, base_volume: pd.Series,
                 score_threshold: float, top_n: int = 5, shifts_n: int = 3) -> dict:
     """The report card for the agent: calendar and normal-day context, the day's top alerts and the
-    biggest shifts in mix from the normal days. These are the numbers it may quote besides the checks'."""
+    biggest shifts in mix from the normal days. These are the numbers it may quote besides the checks'.
+    Text from the data goes to the model only if it is a known value; anything else becomes OTHER."""
+    scored, base_slice = known_values_only(scored), known_values_only(base_slice)
     start, _ = slice_bounds(sid)
     fmt = scored["payment_format"].value_counts(normalize=True)
     normal_fmt = base_slice["payment_format"].value_counts(normalize=True)

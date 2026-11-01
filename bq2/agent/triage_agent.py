@@ -30,7 +30,7 @@ class Triage(BaseModel):
     severity: Literal["low", "medium", "high"]
     verdict: Literal["expected", "investigate", "data issue"]
     summary: str = Field(description="At most three short sentences in plain English.")
-    evidence: list[str] = Field(description="Each number used, copied exactly from the input.")
+    evidence: list[str] = Field(description="The numbers the summary uses (at most 6), copied exactly from the input.")
     suggested_action: str
 
 
@@ -73,9 +73,9 @@ def get_llm():
                                                            os.environ.get("AWS_REGION", "ap-southeast-1")))
         return ChatBedrockConverse(client=session.client("bedrock-runtime"),
                                    model=os.environ["BEDROCK_MODEL_ID"], provider="anthropic",
-                                   max_tokens=400, temperature=0)
+                                   max_tokens=800, temperature=0)
     from langchain_anthropic import ChatAnthropic
-    return ChatAnthropic(model=os.environ["ANTHROPIC_MODEL"], max_tokens=400, temperature=0)
+    return ChatAnthropic(model=os.environ["ANTHROPIC_MODEL"], max_tokens=800, temperature=0)
 
 
 class FakeLLM:
