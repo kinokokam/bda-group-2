@@ -64,7 +64,7 @@ One simulated day of transfers. The monitor replays them one at a time, 1–10 S
 _Avoid_: batch, hour (slices were hourly until 26 Oct)
 
 **Check**:
-One of four tests a slice must pass: recon, quality, drift or anomaly. Each result is pass or fail; there is no warning level.
+One of four tests a slice must pass: recon, quality, drift or volume. Each result is pass or fail; there is no warning level. The checks judge whether a day's data can be trusted, not who is laundering.
 
 **Normal day**:
 A day the monitor compares slices against: the weekdays 2 and 5–9 Sep, and the weekend days 3–4 Sep. A slice is compared only with the other normal days of its kind, never with its own day.
@@ -77,10 +77,14 @@ The rule that accepts a slice only if every check passes. It is code, never the 
 Where a slice that failed the gate goes, so it never reaches the dashboard.
 _Avoid_: reject, drop
 
-**Triage note**:
-The agent's short explanation of a failed slice: severity, verdict (expected, data issue or investigate), summary and suggested action. A slice that passes every check gets no note.
-_Avoid_: AI summary, report
+**Check report**:
+What the checks measured for one slice: which checks failed, the numbers behind each, the biggest changes from the normal days, the top alerts and whether the slice was quarantined. It states facts only; deciding what they mean is the risk team's job. Code fills it from a fixed template, so the same slice always gets the same report.
+_Avoid_: triage note (triage implies a judgement), AI summary, verdict
+
+**Escalation**:
+The check report of a quarantined slice, passed on to the risk team. It is shown on the dashboard.
+_Avoid_: alert (an alert is a flagged transfer)
 
 **Snapshot**:
-The local copy of the S3 data, result tables, checks and triage notes that the dashboard reads. S3 stays the source of truth.
+The local copy of the S3 data, result tables, checks and check reports that the dashboard reads. S3 stays the source of truth.
 _Avoid_: cache, extract

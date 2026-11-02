@@ -1,9 +1,9 @@
 """
-Replay HI-Small as a live feed: one slice per simulated hour (local mode).
+Replay HI-Small as a live feed: one slice per simulated day (local mode).
 
 The dataset is a finished simulation of 1-10 Sep 2022, so "live" means replaying it in time
-order. Each hour of 1-10 Sep becomes its own slice. The 11-18 Sep tail is simulator leftovers
-(57-73% laundering); only 11 Sep is replayed, as one day-long slice, for the quarantine demo.
+order. Each day of 1-10 Sep becomes its own slice (hourly until 26 Oct). The 11-18 Sep tail is
+simulator leftovers (57-73% laundering); only 11 Sep is replayed, for the quarantine demo.
 
 Slices are raw: bank and account ids stay text (leading zeros), duplicates are kept, and there
 are no derived columns. Recon compares them against the curated data.
@@ -31,7 +31,7 @@ RAW_NAMES = ["ts", "from_bank", "from_account", "to_bank", "to_account", "amount
 ID_COLS = ["from_bank", "from_account", "to_bank", "to_account"]
 
 FIRST_DAY = pd.Timestamp("2022-09-01")
-TAIL_START = pd.Timestamp("2022-09-11")     # tail: only this day is replayed, as one slice
+TAIL_START = pd.Timestamp("2022-09-11")     # tail: only this day is replayed
 TAIL_END = pd.Timestamp("2022-09-12")
 
 
@@ -47,15 +47,14 @@ def read_raw(path: Path = RAW_TRANS) -> pd.DataFrame:
 
 
 def slice_id(ts: pd.Series) -> pd.Series:
-    """'YYYY-MM-DDTHH' for 1-10 Sep, 'YYYY-MM-DD' for the tail day, None outside the replay."""
-    ids = ts.dt.strftime("%Y-%m-%dT%H").where((ts >= FIRST_DAY) & (ts < TAIL_START))
-    return ids.fillna(ts.dt.strftime("%Y-%m-%d").where((ts >= TAIL_START) & (ts < TAIL_END)))
+    """'YYYY-MM-DD' for 1-11 Sep, None outside the replay."""
+    return ts.dt.strftime("%Y-%m-%d").where((ts >= FIRST_DAY) & (ts < TAIL_END))
 
 
 def slice_bounds(sid: str) -> tuple[pd.Timestamp, pd.Timestamp]:
     """[start, end) of a slice, for the quality check's timestamp rule."""
-    start = pd.Timestamp(sid.replace("T", " ") + (":00" if "T" in sid else ""))
-    return start, start + (pd.Timedelta("1h") if "T" in sid else pd.Timedelta("1D"))
+    start = pd.Timestamp(sid)
+    return start, start + pd.Timedelta("1D")
 
 
 def write_slices(df: pd.DataFrame, out_dir: Path = STREAM_DIR) -> list[str]:
@@ -89,7 +88,7 @@ def next_slice(out_dir: Path = STREAM_DIR) -> str | None:
 
 
 def reset_cursor(out_dir: Path = STREAM_DIR, start_after: str | None = None) -> None:
-    """Restart the replay; start_after='2022-09-07T23' begins it at 8 Sep 00:00."""
+    """Restart the replay; start_after='2022-09-07' begins it at 8 Sep."""
     cursor = out_dir / "_cursor.json"
     if start_after is None:
         cursor.unlink(missing_ok=True)
@@ -100,7 +99,7 @@ def reset_cursor(out_dir: Path = STREAM_DIR, start_after: str | None = None) -> 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["build", "next", "reset"])
-    ap.add_argument("--start-after", help="for reset: slice id to resume after, e.g. 2022-09-07T23")
+    ap.add_argument("--start-after", help="for reset: slice id to resume after, e.g. 2022-09-07")
     args = ap.parse_args()
     if args.command == "build":
         ids = write_slices(read_raw())

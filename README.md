@@ -14,7 +14,7 @@ Anti-money-laundering on the IBM synthetic transactions dataset, HI-Small only
 | Folder | What lives here |
 | --- | --- |
 | `bq1/` | Batch training (Spark ETL, XGBoost) and real-time scoring (replay, Flink) |
-| `bq2/` | Exposure analysis: Athena marts, dashboard, monitoring, triage agent |
+| `bq2/` | Exposure analysis: Athena marts, dashboard, monitoring, check reports |
 | `infra/` | Infrastructure as code for the AWS footprint (empty) |
 | `frontend/` | Analyst-facing UI (alert queue, watch-list) |
 
@@ -90,7 +90,7 @@ model at startup.
 Kaggle → S3 `raw/` → Lambda (parse patterns, fetch FX) → Athena CTAS → S3
 `curated/` (Parquet by date) → Athena marts → XGBoost in Jupyter → Lambda
 publish → S3 `site/` (Plotly dashboard). One Airflow DAG runs the lot, with
-live checks and a Claude triage agent on every replayed slice. The full plan
+live checks and a check report on every replayed slice. The full plan
 is in [`bq2/docs/Laundering_Exposure_Plan.html`](bq2/docs/Laundering_Exposure_Plan.html).
 
 | Folder | What lives here | Owner |
@@ -102,8 +102,7 @@ is in [`bq2/docs/Laundering_Exposure_Plan.html`](bq2/docs/Laundering_Exposure_Pl
 | `bq2/lambdas/` | `parse_patterns`, `fetch_fx`, `publish` handlers | Owen (first two), Neeharika (publish) |
 | `bq2/notebooks/` | `aml_xgboost.ipynb` | Qiaoye |
 | `bq2/airflow/dags/` | `aml_bq2_dag.py`, the one DAG that runs everything | Qiaoye |
-| `bq2/monitoring/` | Recon, quality, drift (PSI) and anomaly checks | Qiaoye |
-| `bq2/agent/` | LangChain + Claude triage agent | Qiaoye |
+| `bq2/monitoring/` | Replay, recon, quality, drift (PSI) and volume checks, check reports, escalations | Qiaoye |
 | `bq2/site/` | `index.html` dashboard and `monitor.html` live monitor | Neeharika, Qiaoye |
 
 ## Getting started

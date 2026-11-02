@@ -2,7 +2,7 @@
 
 This file condenses `Laundering_Exposure_Plan.html`, the team's plan page with four tabs: Overview, End-to-end pipeline, Live monitoring + AI and Work split. Treat it as the source of truth for the project. Sections 9 and 10 list decisions made **after** the HTML was written. Where they disagree with the HTML, they win.
 
-You are working for **Qiaoye** (SMU Big Data group project, team of three). Qiaoye owns the XGBoost notebook, the Airflow DAG, the live monitoring checks and the Claude triage agent.
+You are working for **Qiaoye** (SMU Big Data group project, team of three). Qiaoye owns the XGBoost notebook, the Airflow DAG, the live monitoring checks, the check report and the Helical AI chat.
 
 ---
 
@@ -94,7 +94,7 @@ Seven steps, one S3 bucket, everything pay-per-use and nothing to switch off.
 | Lambda | $0 |
 | Athena | < $1 |
 | XGBoost and Airflow | $0 |
-| Claude agent | about $1–2 (about 240 calls for a full replay) |
+| Claude | $0 in the monitor (no model call since 2 Nov); the Helical AI chat pays per question on Bedrock, not yet measured |
 | **Total** | **≈ US$3** |
 
 Set an AWS Budgets alarm at $20 on day one.
@@ -174,42 +174,38 @@ Each Athena table points at its own folder.
 
 ## 8. Live monitoring + AI layer (tab 3; Qiaoye owns it end to end)
 
-**Purpose:** turn a one-off report into a live feed that is checked and explained. The pipeline replays HI-Small one simulated hour at a time. Four checks gate each slice before it can reach the marts or the dashboard, and a Claude agent writes a short note on what changed.
+**Updated 2 Nov; §10.16–10.18 have the reasons.**
 
-**DAG for each slice:** `replay_slice → load_slice` (Athena INSERT) `→ [check_recon, check_quality, check_drift, score_and_anomaly]` (in parallel) `→ gate` (an Airflow branch in plain code) `→ build_marts | quarantine` (`quarantine/` prefix) `→ agent_triage → send_alert` (email if severity is high).
+**Purpose:** turn a one-off report into a live feed that is checked and reported on. The pipeline replays HI-Small one simulated day at a time (1–10 Sep plus the 11 Sep tail). Four checks gate each slice before it can reach the marts or the dashboard, and code writes a check report stating what they measured. Airflow is the agent that runs every step; no model is called. The AI sits in the Helical dashboard's chat (Claude Haiku 4.5 on Bedrock), where a person asks questions about the reports and the data.
+
+**DAG for each slice:** `replay_slice → load_slice` (Athena INSERT) `→ [check_recon, check_quality, check_drift, check_volume]` (in parallel) `→ gate` (an Airflow branch in plain code) `→ build_marts | quarantine` `→ report_slice → send_escalation` (every quarantined slice).
 
 | Check | Compares | Fails when |
 |---|---|---|
 | Recon | Row count, total `amount_paid` and laundering count, raw slice vs curated slice | Any gap beyond the known duplicates |
 | Quality | Nulls in key columns; only the 15 currencies and 7 formats; amount > 0; timestamp inside the slice; USD amount present | Any rule broken |
-| Drift | PSI of format mix, currency mix, USD amount bands and model-score bands against the same hour on normal weekdays (2–9 Sep) | PSI > 0.25 (0.1–0.25 is a warning) |
-| Anomaly | XGBoost scores; each bank's and channel's share of the top 0.5%; volume against the same hour's baseline | More than 3 standard deviations |
+| Drift | PSI of format mix, currency mix, USD amount bands and model-score bands against the other normal days of the slice's kind | PSI > 0.25 |
+| Volume | Transfers in the day against the normal days' mean, spread floored at 10% of the mean | More than 3 spreads away |
 
-**Three real cases to demo:**
+**What the 1 Nov / 2 Nov run found (all natural, nothing injected):**
 
-1. **Weekend FX gap.** Recon fails, and the agent names the weekend as the cause.
-2. **1 Sep Reinvestment batch.** Drift flags it, and the agent rates it low as an expected month-start batch.
-3. **11 Sep tail.** Drift PSI is 8.8 and anomaly shows 58.6% laundering across 396 transfers, so the slice is quarantined. The agent says "data issue".
+1. **1 Sep** fails drift (payment format PSI 3.866; Reinvestment 43.1% of transfers against 0.0% on normal days) and volume (1,114,919 transfers against a normal 556,529, z 5.15). Quarantined and escalated.
+2. **2 Sep** fails volume (754,449 against a normal 516,945, z 3.45). Quarantined and escalated.
+3. **11 Sep** (tail) fails drift (payment format PSI 8.393; ACH 100.0% against 14.2%) and volume (396 against a normal 207,406, z -9.98), and is outside the 1–10 Sep simulation. Quarantined and escalated.
+4. 3–10 Sep pass all four checks.
 
-**Agent design:**
+**Check report** (`monitoring/report.py`): filled in from a fixed template, so the same checks always give the same report. It holds which checks failed, a summary quoting their numbers, the three biggest changes in format and currency mix, the top 5 alerts, and whether the slice was quarantined. It has no verdict, severity or suggested action: the monitor states what it measured, and the risk team decides what it means. Text from the data reaches the report only as a known value; anything else becomes OTHER.
 
-- **Stack:** LangChain + Claude, via Bedrock if the account allows it, otherwise the Anthropic API.
-- **Reads:** check results (numbers only).
-- **Tools:** `run_saved_query` (five fixed, read-only Athena queries), `get_baseline`, `get_top_alerts`; at most 3 tool calls per slice.
-- **Output:** structured JSON with `severity`, `verdict` (expected / investigate / data issue), a 3-sentence `summary`, the `evidence` numbers and a `suggested_action`.
-- **Guardrails:**
-  - no free-form SQL and no writes;
-  - a token cap per call;
-  - every number in the note must appear in the inputs (flag any that don't as `unverified_numbers`);
-  - **the gate is decided by code, never by the agent.**
-- **On screen:** the monitor page `site/monitor.html` shows each slice's check badges and the agent note, labelled "AI-generated, review before acting".
+**Escalation** (`monitoring/escalations.py`): every quarantined slice's report is appended to `out/escalations.log` and shown on the dashboard. Slack is an open decision.
+
+**On screen:** the Helical monitor page shows each slice's check badges, its check report and the escalations; the AI chat answers questions about them.
 
 **X-factors claimed:**
 
 | X-factor | Evidence on the slide |
 |---|---|
 | Automation (one Airflow DAG) | Live demo |
-| Near-real-time + AI with a job | The quarantined 11 Sep slice and its agent note |
+| Near-real-time + AI with a job | The quarantined days and their check reports; the Helical AI chat answering questions about them |
 | Cost and speed | The same lift query on raw CSV vs Parquet; Athena "data scanned" for each (≈ 476 MB vs a few MB) |
 | External data that changes the answer | Rankings before and after USD conversion, plus Basel scores |
 
@@ -219,7 +215,7 @@ Each Athena table points at its own folder.
 |---|---|---|
 | **Owen** | Data platform and **everything in S3**: bucket, IAM, budget alarm, uploads, the `parse_patterns` and `fetch_fx` Lambdas, Athena DDL, curated CTAS, S3 static site, CSV-vs-Parquet test | ≈ $0.50 |
 | **Neeharika** | BQ2 analysis and dashboard: `currency_lookup.csv`, the seven marts (DuckDB locally first, then Athena), `publish` Lambda, `site/index.html`, one-paragraph finding per chart | ≈ $0.50 |
-| **Qiaoye** | XGBoost notebook, Airflow DAG, replay, the four checks, the Claude agent, `site/monitor.html`, the demo recording. **Not assigned S3 setup work.** | ≈ $2 |
+| **Qiaoye** | XGBoost notebook, Airflow DAG, replay, the four checks, the check report, the Helical monitor page and AI chat, the demo recording. **Not assigned S3 setup work.** | ≈ $2 |
 
 | ID | From → to | Handed over | Blocks |
 |---|---|---|---|
@@ -275,15 +271,23 @@ Phase 4 (slides and rehearsal) is shared by all three; each person presents thei
 16. **Monitor design (24–26 Oct).**
     - **Daily slices**, not hourly: 1–10 Sep plus 11 Sep, 11 slices. AML monitoring normally runs daily, and every real failure in the hourly run was whole-day (all 24 hours of 1 Sep failed drift for the same reason).
     - **Pass or fail only.** Drift fails above PSI 0.25; no warning level.
-    - **Agent only on failure.** A slice that passes every check gets "All checks passed" and no model call.
+    - **Agent only on failure.** A slice that passes every check gets "All checks passed" and no model call. Superseded by §10.18: no slice calls a model.
     - **Pre-run, not live.** Every slice is run through Airflow before the presentation; on stage, show the finished Airflow runs and the Helical monitor page.
     - **Only natural failures.** No injected weekend-FX incident. The hourly run (with the old hourly slices) failed 25 of 241 slices: all 24 hours of 1 Sep (drift, payment format PSI about 2.7; 00:00 also anomaly, volume z 67.5; 19:00 also a hot bank) and the 11 Sep tail (drift PSI 8.65, anomaly). 2–10 Sep all passed.
 17. **Decisions of 1 Nov (new laptop).**
     - **The old `out/` is gone.** It was only on the old laptop. Everything in it is rebuilt here: the live model (§10.12) first, then the daily slices, checks and notes.
-    - **S3 is the source of truth for monitor outputs too.** Slices' check results and triage notes are written to `s3://aml-bq2/monitor/`; the local `bq2/out/` is a working copy. The snapshot syncs from S3 only.
+    - **S3 is the source of truth for monitor outputs too.** Slices' check results and check reports are written to `s3://aml-bq2/monitor/`; the local `bq2/out/` is a working copy. The snapshot syncs from S3 only.
     - **A day is never compared with itself.** Drift and anomaly compare a slice with the other normal days of its kind: weekdays 2 and 5–9 Sep, weekends 3–4 Sep, minus the slice's own day. So 2 Sep is compared with 5–9 Sep, and 3 Sep with 4 Sep only. If 3 or 4 Sep fail because their baseline is one day, report it; don't loosen the rules.
     - **AWS user `g1team2`** (AdministratorAccess) replaces `aml-cli` on this laptop. The no-paid-resources rule still applies.
     - **Marts built (1 Nov).** All six Part 1 marts ran in Athena and match their header expectations, except `bank_concentration`: 95 of 30,528 sending banks reach 50% (header says 89 of 30,470, likely from a local copy of the data).
+18. **Decisions of 1–2 Nov (monitor design, grilling with Qiaoye).**
+    - **The anomaly check is now a volume check.** The per-day "hot bank" rule (6+ alerts at one bank and 5× its normal share) fired on 10 of 11 days for 6–9 alerts out of hundreds of thousands, so it was dropped. Account-level alert concentration is a later idea, not built.
+    - **A day is compared with the other normal days of its kind** (§10.17). 2 Sep is a normal weekday yet fails volume against 5–9 Sep; it is reported, not explained away.
+    - **No model in the monitor.** Claude's notes misapplied written rules (it called 2 Sep a "data issue" and gave the 11 Sep tail high severity), so code now fills in the check report from a fixed template, and Airflow runs it as the `report_slice` task. `agent/triage_agent.py`, its tests and the `langchain-core`, `langchain-aws` and `pydantic` packages were removed; the old version is in git history.
+    - **Facts only.** The report has no verdict, severity or suggested action. "1 Sep is the month-start batch" was our guess: the data has one month start, so the pattern can't be shown to repeat. Deciding what a failed day means is the risk team's job.
+    - **Every quarantined slice escalates** (1, 2 and 11 Sep in this run). "Triage note" is renamed "check report" (`CONTEXT.md`).
+    - **The AI is the Helical chat** on Bedrock (§10.15, P7b).
+    - **Outputs on S3:** `s3://aml-bq2/monitor/checks/`, `reports/`, `escalations.log` and `quarantine/slice=<day>/` for 1, 2 and 11 Sep.
 
 ## 11. Repo and working rules
 
@@ -297,8 +301,8 @@ sql/               01_tables.sql, 02_curated_transactions.sql, marts/*.sql
 lambdas/           parse_patterns/, fetch_fx/, publish/   (handler.py each)
 notebooks/         aml_xgboost.ipynb, AGENT_HANDOVER.md
 airflow/dags/      aml_bq2_dag.py
-monitoring/        checks.py   (recon, quality, drift PSI, anomaly, gate)
-agent/             triage_agent.py  (LangChain + Claude, structured output, number guardrail)
+monitoring/        replay.py, curate.py, features.py, checks.py (recon, quality, drift, volume, gate),
+                   run.py, report.py (check report), escalations.py
 site/              index.html (Neeharika), monitor.html (Qiaoye)
 ```
 
@@ -311,7 +315,7 @@ site/              index.html (Neeharika), monitor.html (Qiaoye)
 - **Git:** start each piece of work on a new branch from the latest `main`. Commit locally. Claude may push feature branches for Qiaoye's MRs, but **only** to remotes under `https://gitlab.com/shopback` (ShopBack policy) and never to `main`/`master`. The current `origin` is personal GitHub, so nothing is pushed; Qiaoye pushes.
 - **Never use these as model inputs:** `is_laundering`, `pattern`, `attempt_id`. Always drop the 11–18 Sep tail. Split by time.
 - **Cost:** don't create paid AWS resources (EC2, Glue jobs, SageMaker, MWAA) without asking. Never touch Marketplace, Redshift, RDS or QuickSight.
-- **Stay in your lane:** change only Qiaoye's areas (`notebooks/`, `airflow/`, `monitoring/`, `agent/`, `site/monitor.html`) unless asked. Owen's and Neeharika's files are theirs. Exception: on 13 Oct Qiaoye asked for Owen's curated pipeline to be fixed (§10.8).
+- **Stay in your lane:** change only Qiaoye's areas (`notebooks/`, `airflow/`, `monitoring/`, the Helical monitor page) unless asked. Owen's and Neeharika's files are theirs. Exception: on 13 Oct Qiaoye asked for Owen's curated pipeline to be fixed (§10.8).
 - **Permissions on this laptop:** reading `.env` and `.env.example` is blocked for Claude; Qiaoye edits those by hand.
 - **Writing style for anything Qiaoye presents:** plain, complete sentences; concise; no jargon without a one-line explanation; never call the notebook "PaySim" or an "earlier project".
 - **Numbers:** quote measured numbers from section 3 or from your own runs, and say which. Never estimate a figure and present it as measured.

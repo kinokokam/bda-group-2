@@ -2,8 +2,11 @@
 Airflow DAG: aml_bq2  (runs locally in Docker; see README)
 
 Batch part (steps 1–7 of the plan) runs once per replay, then the monitoring part runs
-for every replayed hourly slice. Keep this file thin: the logic lives in lambdas/,
-sql/, monitoring/ and agent/ so each owner can test their piece on its own.
+for every replayed daily slice. Keep this file thin: the logic lives in lambdas/,
+sql/ and monitoring/ so each owner can test their piece on its own.
+
+Airflow is the agent that runs the monitor: every step, including the check report, is code
+on a schedule, with no model call. The AI chat lives in the Helical dashboard instead.
 
 Needs: apache-airflow 2.x, apache-airflow-providers-amazon, plus the repo folders
 mounted into the containers. Connection "aws_default" should use your AWS profile.
@@ -47,30 +50,28 @@ def run_checks(check: str, **ctx):
     (curate, score with the live model, check) and caches nothing between tasks, so each task reruns it."""
     from monitoring.run import run_checks as run_all
     sid = ctx["ti"].xcom_pull(task_ids="replay_slice")
-    return next(r for r in run_all(sid, write=check == "anomaly")["results"] if r["check"] == check)
+    return next(r for r in run_all(sid, write=check == "volume")["results"] if r["check"] == check)
 
 
 def choose_path(**ctx):
     from monitoring.checks import gate
     results = [ctx["ti"].xcom_pull(task_ids=t) for t in
-               ("check_recon", "check_quality", "check_drift", "score_and_anomaly")]
+               ("check_recon", "check_quality", "check_drift", "check_volume")]
     return "build_marts" if gate(results) == "pass" else "quarantine"
 
 
-def agent_triage(**ctx):
-    """Agent note for the slice (out/monitor/notes/<slice>.json); reads the checks file score_and_anomaly wrote.
-    The alert is left to send_alert."""
-    from monitoring.run import triage_slice
-    return triage_slice(ctx["ti"].xcom_pull(task_ids="replay_slice"), alert=False)
+def report_slice(**ctx):
+    """Check report for the slice (out/monitor/reports/<slice>.json), filled in from a fixed template;
+    reads the checks file check_volume wrote. The escalation is left to send_escalation."""
+    from monitoring.run import report_slice as write
+    return write(ctx["ti"].xcom_pull(task_ids="replay_slice"), escalate=False)
 
 
-def send_alert(**ctx):
-    """Log the agent's note to out/alerts.log when its severity is 'high' (email in a real deployment)."""
-    from monitoring.alerts import send_alert as log_alert
-    ti = ctx["ti"]
-    note = ti.xcom_pull(task_ids="agent_triage")
-    path = ti.xcom_pull(task_ids="gate")        # the branch it chose: build_marts or quarantine
-    return log_alert(note, path) if note else False
+def send_escalation(**ctx):
+    """Log the check report to out/escalations.log when the slice was quarantined (shown on the dashboard)."""
+    from monitoring.escalations import send_escalation as log_escalation
+    report = ctx["ti"].xcom_pull(task_ids="report_slice")
+    return log_escalation(report) if report else False
 
 
 default_args = {"retries": 1, "retry_delay": timedelta(minutes=1)}
@@ -104,13 +105,13 @@ with DAG(
     load = EmptyOperator(task_id="load_slice")      # Athena INSERT INTO for the slice
     checks = [PythonOperator(task_id=t, python_callable=run_checks, op_kwargs={"check": c})
               for t, c in [("check_recon", "recon"), ("check_quality", "quality"),
-                           ("check_drift", "drift"), ("score_and_anomaly", "anomaly")]]
+                           ("check_drift", "drift"), ("check_volume", "volume")]]
     gate_task = BranchPythonOperator(task_id="gate", python_callable=choose_path)
     build_marts = EmptyOperator(task_id="build_marts")
     quarantine = EmptyOperator(task_id="quarantine")  # move slice to quarantine/
-    triage = PythonOperator(task_id="agent_triage", python_callable=agent_triage,
+    report = PythonOperator(task_id="report_slice", python_callable=report_slice,
                             trigger_rule="none_failed_min_one_success")
-    alert = PythonOperator(task_id="send_alert", python_callable=send_alert)
+    escalation = PythonOperator(task_id="send_escalation", python_callable=send_escalation)
 
     publish >> replay >> load >> checks >> gate_task >> [build_marts, quarantine]
-    [build_marts, quarantine] >> triage >> alert
+    [build_marts, quarantine] >> report >> escalation

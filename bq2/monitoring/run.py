@@ -1,17 +1,16 @@
 """
 Run the four live checks on one replayed slice (local mode) and decide the gate.
 
-    python -m monitoring.run 2022-09-08T10            # writes out/monitor/checks/<slice>.json
-    python -m monitoring.run 2022-09-11 --triage      # plus the agent note in out/monitor/notes/
+    python -m monitoring.run 2022-09-08               # writes out/monitor/checks/<slice>.json
+    python -m monitoring.run 2022-09-11 --report      # plus the check report in out/monitor/reports/
 
 Per slice:
     raw slice (out/stream/)  ->  curate (dedup + FX join)  ->  score with the live model
-    ->  recon, quality, drift, anomaly  ->  gate (code, never the agent)
+    ->  recon, quality, drift, volume  ->  gate  ->  check report (all code, no model)
 
-The drift baseline is the same hour on normal weekdays: 2, 5, 6, 7, 8 and 9 Sep (1 Sep is
-month-start). The anomaly volume baseline is the same hour on the same day type, so a weekend slice
-is compared with 3-4 Sep. Both are scored once and cached in out/live_model/baseline.parquet.
-For the day-long tail slice, the baseline is whole weekdays.
+A slice is one day. Drift and volume compare it with the other normal days of its kind
+(normal_days): weekdays 2 and 5-9 Sep (1 Sep is month-start), weekends 3-4 Sep, never the slice's
+own day. The normal days are scored once and cached in out/live_model/baseline.parquet.
 """
 from __future__ import annotations
 
@@ -26,15 +25,15 @@ import xgboost as xgb
 from monitoring import checks
 from monitoring.curate import curate_slice, load_currency_lookup, load_fx
 from monitoring.features import live_features
-from monitoring.replay import REPO, STREAM_DIR, TAIL_START, list_slices, load_slice, slice_bounds
+from monitoring.replay import REPO, STREAM_DIR, TAIL_START, load_slice, slice_bounds
 
 LIVE_DIR = REPO / "out" / "live_model"
 CHECKS_DIR = REPO / "out" / "monitor" / "checks"
-BASELINE_DAYS = ["2022-09-02", "2022-09-05", "2022-09-06", "2022-09-07", "2022-09-08", "2022-09-09"]
-WEEKEND_DAYS = ["2022-09-03", "2022-09-04"]
+NORMAL_WEEKDAYS = ["2022-09-02", "2022-09-05", "2022-09-06", "2022-09-07", "2022-09-08", "2022-09-09"]
+NORMAL_WEEKEND_DAYS = ["2022-09-03", "2022-09-04"]
 BASELINE_COLS = ["ts", "from_bank", "payment_format", "payment_currency", "amount_paid_usd",
                  "is_laundering", "score"]
-NOTES_DIR = REPO / "out" / "monitor" / "notes"
+REPORTS_DIR = REPO / "out" / "monitor" / "reports"
 
 
 @lru_cache(maxsize=1)
@@ -65,26 +64,27 @@ def score(curated_day: pd.DataFrame) -> pd.Series:
     return pd.Series(booster.predict(xgb.DMatrix(X, enable_categorical=True)), index=curated_day.index)
 
 
+def normal_days(day: str) -> list[str]:
+    """The normal days a slice is compared with: the other ones of its kind, never its own day."""
+    weekend = pd.Timestamp(day).dayofweek >= 5
+    return [d for d in (NORMAL_WEEKEND_DAYS if weekend else NORMAL_WEEKDAYS) if d != day]
+
+
 def score_slice(sid: str, fx: pd.DataFrame | None = None, out_dir: Path = STREAM_DIR) -> pd.DataFrame:
-    """The slice's curated rows with a 'score' column, scored using only that day's slices up to this one."""
-    day = sid[:10]
-    so_far = [s for s in list_slices(out_dir) if s[:10] == day and s <= sid]
-    curated = curate(pd.concat([load_slice(s, out_dir) for s in so_far], ignore_index=True), fx)
+    """The slice's curated rows with a 'score' column."""
+    curated = curate(load_slice(sid, out_dir), fx)
     curated["score"] = score(curated).astype("float32")
-    start, end = slice_bounds(sid)
-    return curated[(curated["ts"] >= start) & (curated["ts"] < end)].reset_index(drop=True)
+    return curated
 
 
 def baseline(out_dir: Path = STREAM_DIR) -> pd.DataFrame:
-    """Scored rows of the baseline days, cached."""
+    """Scored rows of every normal day, cached."""
     path = LIVE_DIR / "baseline.parquet"
     if path.exists():
         return pd.read_parquet(path)
     parts = []
-    for day in BASELINE_DAYS + WEEKEND_DAYS:      # a whole day at once gives the same so-far-today counts
-        sids = [s for s in list_slices(out_dir) if s[:10] == day]
-        curated = curate(pd.concat([load_slice(s, out_dir) for s in sids], ignore_index=True))
-        curated["score"] = score(curated).astype("float32")
+    for day in NORMAL_WEEKDAYS + NORMAL_WEEKEND_DAYS:
+        curated = score_slice(day, out_dir=out_dir)
         parts.append(curated[BASELINE_COLS])
     base = pd.concat(parts, ignore_index=True)
     base.to_parquet(path, index=False)
@@ -93,7 +93,7 @@ def baseline(out_dir: Path = STREAM_DIR) -> pd.DataFrame:
 
 def run_checks(sid: str, fx: pd.DataFrame | None = None, out_dir: Path = STREAM_DIR,
                write: bool = True) -> dict:
-    """All four checks plus the gate for one slice. fx overrides the FX table (used by the weekend demo)."""
+    """All four checks plus the gate for one slice. fx overrides the FX table."""
     raw = load_slice(sid, out_dir)
     duplicates = int(raw.duplicated().sum())
     scored = score_slice(sid, fx, out_dir)
@@ -101,71 +101,92 @@ def run_checks(sid: str, fx: pd.DataFrame | None = None, out_dir: Path = STREAM_
     _, threshold, _, _ = live_model()
 
     base = baseline(out_dir)
-    weekend = base["ts"].dt.dayofweek >= 5
-    weekdays = base[~weekend]
-    if "T" in sid:
-        base_slice = weekdays[weekdays["ts"].dt.hour == start.hour]
-        same_type = base[(weekend == (start.dayofweek >= 5)) & (base["ts"].dt.hour == start.hour)]
-        base_volume = same_type.groupby(same_type["ts"].dt.floor("h")).size()
-    else:
-        base_slice = weekdays
-        base_volume = weekdays.groupby(weekdays["ts"].dt.normalize()).size()
-    flagged = weekdays[weekdays["score"] >= threshold]
-    base_bank_share = flagged["from_bank"].value_counts(normalize=True)
+    base_day = base["ts"].dt.strftime("%Y-%m-%d")
+    base_slice = base[base_day.isin(normal_days(sid))]
+    base_volume = base_slice.groupby(base_day[base_slice.index]).size()
 
     results = [
         {**checks.check_recon(raw.drop_duplicates(), scored), "duplicates_dropped": duplicates},
         checks.check_quality(scored, start, end),
         checks.check_drift(base_slice, scored),
-        checks.check_anomaly(scored, base_volume, base_bank_share, threshold),
+        checks.check_volume(scored, base_volume, threshold),
     ]
     gate = checks.gate(results)
     out = {"slice": sid, "gate": gate, "path": "build_marts" if gate == "pass" else "quarantine",
-           "results": results, "facts": slice_facts(sid, scored, base_slice, base_volume)}
+           "results": results, "facts": slice_facts(sid, scored, base_slice, base_volume, threshold)}
     if write:
         CHECKS_DIR.mkdir(parents=True, exist_ok=True)
         (CHECKS_DIR / f"{sid}.json").write_text(json.dumps(out, indent=2, default=str))
     return out
 
 
-def slice_facts(sid: str, scored: pd.DataFrame, base_slice: pd.DataFrame, base_volume: pd.Series) -> dict:
-    """Calendar and baseline context for the agent: the numbers it may quote besides the checks'."""
+def known_values_only(df: pd.DataFrame) -> pd.DataFrame:
+    """Payment formats and currencies off the known lists, and bank ids that aren't digits, become OTHER."""
+    df = df.copy()
+    for col, known in (("payment_format", checks.KNOWN_FORMATS), ("payment_currency", checks.KNOWN_CURRENCIES)):
+        df[col] = df[col].where(df[col].isin(known), "OTHER")
+    for col in ("from_bank", "to_bank"):
+        if col in df:
+            df[col] = df[col].where(df[col].astype(str).str.fullmatch(r"\d{1,10}"), "OTHER")
+    return df
+
+
+def slice_facts(sid: str, scored: pd.DataFrame, base_slice: pd.DataFrame, base_volume: pd.Series,
+                score_threshold: float, top_n: int = 5, shifts_n: int = 3) -> dict:
+    """Context for the check report: calendar and normal-day facts, the day's top alerts and the
+    biggest shifts in mix from the normal days. Text from the data is kept only if it is a known
+    value; anything else becomes OTHER, so junk text never reaches the dashboard or its AI chat."""
+    scored, base_slice = known_values_only(scored), known_values_only(base_slice)
     start, _ = slice_bounds(sid)
     fmt = scored["payment_format"].value_counts(normalize=True)
     normal_fmt = base_slice["payment_format"].value_counts(normalize=True)
     top = fmt.index[0] if len(fmt) else None
+    alerts = scored[scored["score"] >= score_threshold].nlargest(top_n, "score")
+    top_alerts = [{"time": r.ts.strftime("%H:%M"), "from_bank": r.from_bank, "to_bank": r.to_bank,
+                   "payment_format": r.payment_format, "payment_currency": r.payment_currency,
+                   "amount_usd": round(float(r.amount_paid_usd), 2), "score": round(float(r.score), 3)}
+                  for r in alerts.itertuples()]
+    shifts = []
+    for col in ("payment_format", "payment_currency"):
+        today = scored[col].value_counts(normalize=True)
+        normal = base_slice[col].value_counts(normalize=True)
+        for value in today.index.union(normal.index):
+            t, n = 100 * float(today.get(value, 0.0)), 100 * float(normal.get(value, 0.0))
+            shifts.append({"what": f"{col}: {value}", "today_pct": round(t, 1), "normal_pct": round(n, 1)})
+    shifts.sort(key=lambda x: abs(x["today_pct"] - x["normal_pct"]), reverse=True)
     return {
         "weekday": start.day_name(), "day_of_month": start.day,
-        "hour": start.hour if "T" in sid else "whole day",
         "is_month_start": start.day == 1, "is_weekend": start.dayofweek >= 5,
         "inside_simulation_window_1_to_10_sep": start < TAIL_START,
-        "normal_rows_same_slice_type": int(round(base_volume.mean())),
+        "normal_days_compared": len(base_volume),
+        "normal_rows_per_day": int(round(base_volume.mean())),
         "normal_laundering_rate_pct": round(100 * float(base_slice["is_laundering"].mean()), 3),
         "top_payment_format": top,
         "top_format_share_pct": round(100 * float(fmt.iloc[0]), 1) if top else None,
         "top_format_normal_share_pct": round(100 * float(normal_fmt.get(top, 0.0)), 1) if top else None,
+        "top_alerts": top_alerts,
+        "biggest_shifts": shifts[:shifts_n],
     }
 
 
-def triage_slice(sid: str, llm=None, alert: bool = True) -> dict:
-    """Agent note for a slice whose checks ran: written to out/monitor/notes/<slice>.json, alerted if high."""
-    from agent.triage_agent import triage
-    from monitoring.alerts import send_alert
-    checked = json.loads((CHECKS_DIR / f"{sid}.json").read_text())
-    facts = {**checked["facts"], "gate_decision": checked["path"]}
-    note = triage(sid, checked["results"], facts, llm=llm)
-    NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    (NOTES_DIR / f"{sid}.json").write_text(json.dumps(note, indent=2, default=str))
-    if alert:
-        send_alert(note, checked["path"])
-    return note
+def report_slice(sid: str, escalate: bool = True) -> dict:
+    """Check report for a slice whose checks ran, written to out/monitor/reports/<slice>.json.
+    A quarantined slice's report is also escalated to the risk team."""
+    from monitoring.report import write_report
+    report = write_report(json.loads((CHECKS_DIR / f"{sid}.json").read_text()))
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (REPORTS_DIR / f"{sid}.json").write_text(json.dumps(report, indent=2, default=str))
+    if escalate:
+        from monitoring.escalations import send_escalation
+        send_escalation(report)
+    return report
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("slice", help="slice id, e.g. 2022-09-08T10 or 2022-09-11")
-    ap.add_argument("--triage", action="store_true", help="also ask the agent for a note (calls the model)")
+    ap.add_argument("slice", help="slice id, e.g. 2022-09-08 or 2022-09-11")
+    ap.add_argument("--report", action="store_true", help="also write the check report")
     args = ap.parse_args()
     print(json.dumps(run_checks(args.slice), indent=2, default=str))
-    if args.triage:
-        print(json.dumps(triage_slice(args.slice), indent=2, default=str))
+    if args.report:
+        print(json.dumps(report_slice(args.slice), indent=2, default=str))

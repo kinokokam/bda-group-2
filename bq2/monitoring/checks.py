@@ -2,8 +2,8 @@
 Live monitoring checks run on every replayed slice (Live monitoring tab of the plan).
 
 Each check returns a dict with at least {"check", "status", ...numbers}.
-status is one of "pass", "warn", "fail". The Airflow gate decides from these alone;
-the Claude agent only explains them.
+status is "pass" or "fail"; there is no warning level. The Airflow gate decides from these alone;
+the check report (report.py) only states them.
 
 Pure pandas / numpy so the same code runs in a notebook, a test, or an Airflow task.
 """
@@ -21,7 +21,8 @@ KNOWN_FORMATS = {"ACH", "Bitcoin", "Cash", "Cheque", "Credit Card", "Reinvestmen
 KEY_COLUMNS = ["ts", "from_bank", "from_account", "to_bank", "to_account",
                "amount_paid", "payment_currency", "payment_format", "is_laundering"]
 AMOUNT_BANDS = [0, 100, 1_000, 10_000, 50_000, 100_000, 1_000_000, np.inf]
-PSI_WARN, PSI_FAIL = 0.10, 0.25          # common rule of thumb for PSI
+PSI_FAIL = 0.25                          # common rule of thumb for PSI
+VOLUME_Z_FAIL = 3.0                      # spreads from the normal days' mean
 
 
 # --------------------------------------------------------------------------- #
@@ -82,13 +83,9 @@ def psi(expected: pd.Series, actual: pd.Series, eps: float = 1e-4) -> float:
     return float(((a - e) * np.log(a / e)).sum())
 
 
-def _status(value: float) -> str:
-    return "fail" if value > PSI_FAIL else "warn" if value > PSI_WARN else "pass"
-
-
 def check_drift(baseline: pd.DataFrame, slice_df: pd.DataFrame,
                 score_col: str | None = "score") -> dict:
-    """baseline = same hour on normal weekdays (2–9 Sep, not 1 Sep month-start)."""
+    """baseline = the other normal days of the slice's kind (see run.normal_days)."""
     amt = "amount_paid_usd" if "amount_paid_usd" in slice_df else "amount_paid"
     metrics = {
         "psi_payment_format": psi(baseline["payment_format"].value_counts(),
@@ -103,43 +100,33 @@ def check_drift(baseline: pd.DataFrame, slice_df: pd.DataFrame,
         metrics["psi_model_score"] = psi(pd.cut(baseline[score_col], bins, include_lowest=True).value_counts(),
                                          pd.cut(slice_df[score_col], bins, include_lowest=True).value_counts())
     worst = max(metrics, key=metrics.get)
-    return {"check": "drift", "status": _status(metrics[worst]), "worst_metric": worst,
+    return {"check": "drift", "status": "fail" if metrics[worst] > PSI_FAIL else "pass", "worst_metric": worst,
             **{k: round(v, 3) for k, v in metrics.items()}}
 
 
 # --------------------------------------------------------------------------- #
-# 4. Anomaly: model scores and volume against the baseline
+# 4. Volume: how many transfers, against the normal days
 # --------------------------------------------------------------------------- #
-def check_anomaly(slice_df: pd.DataFrame, baseline_volume: pd.Series,
-                  baseline_bank_share: pd.Series, score_threshold: float,
-                  z_fail: float = 3.0, min_bank_flags: int = 6, min_rel_std: float = 0.10) -> dict:
+def check_volume(slice_df: pd.DataFrame, baseline_volume: pd.Series, score_threshold: float,
+                 z_fail: float = VOLUME_Z_FAIL, min_rel_std: float = 0.10) -> dict:
     """
-    slice_df needs a 'score' column from the XGBoost model.
-    baseline_volume: transfers per slice for comparable slices (same hour, same day type).
-    baseline_bank_share: each sending bank's normal share of top-scored transfers.
-    score_threshold: the alert threshold (top 0.5% of scores on a day the model did not fit on).
-    min_bank_flags: a bank is hot only with at least this many flags in the slice. On the
-        baseline hours no bank ever had more than 5, so one or two flags at a rarely flagged
-        bank (a huge but meaningless lift) can't fail the slice.
-    min_rel_std: floor on the volume spread, as a share of the baseline mean. The weekend baseline
-        has only two days (3-4 Sep), whose spread can be a handful of transfers; weekdays vary ~22%.
+    baseline_volume: transfers per day on the normal days the slice is compared with.
+    score_threshold: the alert threshold; the day's alert count is reported, never judged.
+    min_rel_std: floor on the volume spread, as a share of the baseline mean. A weekend day is
+        compared with a single other weekend day, whose spread is zero.
+    The hourly version also failed a slice for a "hot bank" (6+ alerts and 5x its normal share).
+    Dropped 1 Nov: over a whole day it fired on 10 of 11 days for 6-9 alerts out of thousands.
     """
     n = len(slice_df)
     spread = max(baseline_volume.std(ddof=0), min_rel_std * baseline_volume.mean(), 1.0)
     vol_z = float((n - baseline_volume.mean()) / spread)
-    flagged = slice_df[slice_df["score"] >= score_threshold]
-    counts = flagged["from_bank"].value_counts()
-    share = counts / max(len(flagged), 1)
-    lift = (share / baseline_bank_share.reindex(share.index).fillna(share.min() / 10)).sort_values(ascending=False)
-    hot_banks = lift[(lift > 5) & (counts.reindex(lift.index) >= min_bank_flags)].head(5).round(1).to_dict()
     laundering_rate = float(slice_df["is_laundering"].mean()) if "is_laundering" in slice_df else None
-    bad = abs(vol_z) > z_fail or bool(hot_banks)
-    return {"check": "anomaly", "status": "fail" if bad else "pass",
-            "rows": n, "volume_z": round(vol_z, 2), "flagged": int(len(flagged)),
-            "hot_banks_lift": hot_banks,
+    return {"check": "volume", "status": "fail" if abs(vol_z) > z_fail else "pass",
+            "rows": n, "normal_rows": round(float(baseline_volume.mean())), "volume_z": round(vol_z, 2),
+            "flagged": int((slice_df["score"] >= score_threshold).sum()),
             "laundering_rate_pct": None if laundering_rate is None else round(100 * laundering_rate, 2)}
 
 
 def gate(results: list[dict]) -> str:
-    """Pass only if nothing failed. Warnings pass but go to the agent for a note."""
+    """Pass only if nothing failed."""
     return "fail" if any(r["status"] == "fail" for r in results) else "pass"
