@@ -1,27 +1,25 @@
 from monitoring.escalations import read_escalations, send_escalation
 
-NOTE = {"slice": "2022-09-11", "severity": "high", "verdict": "data issue",
-        "summary": "396 transfers, 58.59% laundering.", "suggested_action": "Keep quarantined.",
-        "unverified_numbers": [], "label": "AI-generated note, review before acting"}
+REPORT = {"slice": "2022-09-11", "weekday": "Sunday", "quarantined": True,
+          "failed_checks": ["drift", "volume"], "summary": "Failed 2 of 4 checks: drift and volume."}
 
 
-def test_high_severity_is_logged_with_the_gate_path(tmp_path):
+def test_a_quarantined_report_is_logged(tmp_path):
     log = tmp_path / "escalations.log"
-    assert send_escalation(NOTE, "quarantine", log) is True
+    assert send_escalation(REPORT, log) is True
     [entry] = read_escalations(log)
-    assert entry["slice"] == "2022-09-11" and entry["path"] == "quarantine" and entry["verdict"] == "data issue"
-    assert entry["label"].startswith("AI-generated")
+    assert entry["slice"] == "2022-09-11" and entry["failed_checks"] == ["drift", "volume"]
+    assert entry["summary"] == REPORT["summary"] and "escalated_at" in entry
 
 
-def test_low_and_medium_are_not_logged(tmp_path):
+def test_a_report_that_was_not_quarantined_is_not_logged(tmp_path):
     log = tmp_path / "escalations.log"
-    for sev in ("low", "medium"):
-        assert send_escalation({**NOTE, "severity": sev}, "build_marts", log) is False
+    assert send_escalation({**REPORT, "quarantined": False, "failed_checks": []}, log) is False
     assert read_escalations(log) == []
 
 
 def test_escalations_append(tmp_path):
     log = tmp_path / "escalations.log"
-    send_escalation(NOTE, "quarantine", log)
-    send_escalation({**NOTE, "slice": "2022-09-01"}, "quarantine", log)
+    send_escalation(REPORT, log)
+    send_escalation({**REPORT, "slice": "2022-09-01"}, log)
     assert [a["slice"] for a in read_escalations(log)] == ["2022-09-11", "2022-09-01"]

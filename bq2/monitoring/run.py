@@ -2,11 +2,11 @@
 Run the four live checks on one replayed slice (local mode) and decide the gate.
 
     python -m monitoring.run 2022-09-08               # writes out/monitor/checks/<slice>.json
-    python -m monitoring.run 2022-09-11 --triage      # plus the triage note in out/monitor/notes/
+    python -m monitoring.run 2022-09-11 --report      # plus the check report in out/monitor/reports/
 
 Per slice:
     raw slice (out/stream/)  ->  curate (dedup + FX join)  ->  score with the live model
-    ->  recon, quality, drift, volume  ->  gate (code, never the agent)
+    ->  recon, quality, drift, volume  ->  gate  ->  check report (all code, no model)
 
 A slice is one day. Drift and volume compare it with the other normal days of its kind
 (normal_days): weekdays 2 and 5-9 Sep (1 Sep is month-start), weekends 3-4 Sep, never the slice's
@@ -33,7 +33,7 @@ NORMAL_WEEKDAYS = ["2022-09-02", "2022-09-05", "2022-09-06", "2022-09-07", "2022
 NORMAL_WEEKEND_DAYS = ["2022-09-03", "2022-09-04"]
 BASELINE_COLS = ["ts", "from_bank", "payment_format", "payment_currency", "amount_paid_usd",
                  "is_laundering", "score"]
-NOTES_DIR = REPO / "out" / "monitor" / "notes"
+REPORTS_DIR = REPO / "out" / "monitor" / "reports"
 
 
 @lru_cache(maxsize=1)
@@ -133,9 +133,9 @@ def known_values_only(df: pd.DataFrame) -> pd.DataFrame:
 
 def slice_facts(sid: str, scored: pd.DataFrame, base_slice: pd.DataFrame, base_volume: pd.Series,
                 score_threshold: float, top_n: int = 5, shifts_n: int = 3) -> dict:
-    """The report card for the agent: calendar and normal-day context, the day's top alerts and the
-    biggest shifts in mix from the normal days. These are the numbers it may quote besides the checks'.
-    Text from the data goes to the model only if it is a known value; anything else becomes OTHER."""
+    """Context for the check report: calendar and normal-day facts, the day's top alerts and the
+    biggest shifts in mix from the normal days. Text from the data is kept only if it is a known
+    value; anything else becomes OTHER, so junk text never reaches the dashboard or its AI chat."""
     scored, base_slice = known_values_only(scored), known_values_only(base_slice)
     start, _ = slice_bounds(sid)
     fmt = scored["payment_format"].value_counts(normalize=True)
@@ -169,32 +169,24 @@ def slice_facts(sid: str, scored: pd.DataFrame, base_slice: pd.DataFrame, base_v
     }
 
 
-def triage_slice(sid: str, llm=None, escalate: bool = True) -> dict:
-    """Triage note for a slice whose checks ran, written to out/monitor/notes/<slice>.json.
-    A slice that passed every check gets "All checks passed." without calling the model;
-    a failed one gets the agent's note, escalated if its severity is high."""
-    checked = json.loads((CHECKS_DIR / f"{sid}.json").read_text())
-    if checked["gate"] == "pass":
-        note = {"slice": sid, "severity": "low", "verdict": "expected", "summary": "All checks passed.",
-                "evidence": [], "suggested_action": "None.", "unverified_numbers": [], "usage": None,
-                "label": "Written by code, no model call"}
-    else:
-        from agent.triage_agent import triage
-        facts = {**checked["facts"], "gate_decision": checked["path"]}
-        note = triage(sid, checked["results"], facts, llm=llm)
-    NOTES_DIR.mkdir(parents=True, exist_ok=True)
-    (NOTES_DIR / f"{sid}.json").write_text(json.dumps(note, indent=2, default=str))
+def report_slice(sid: str, escalate: bool = True) -> dict:
+    """Check report for a slice whose checks ran, written to out/monitor/reports/<slice>.json.
+    A quarantined slice's report is also escalated to the risk team."""
+    from monitoring.report import write_report
+    report = write_report(json.loads((CHECKS_DIR / f"{sid}.json").read_text()))
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (REPORTS_DIR / f"{sid}.json").write_text(json.dumps(report, indent=2, default=str))
     if escalate:
         from monitoring.escalations import send_escalation
-        send_escalation(note, checked["path"])
-    return note
+        send_escalation(report)
+    return report
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("slice", help="slice id, e.g. 2022-09-08 or 2022-09-11")
-    ap.add_argument("--triage", action="store_true", help="also write the triage note (calls the model if a check failed)")
+    ap.add_argument("--report", action="store_true", help="also write the check report")
     args = ap.parse_args()
     print(json.dumps(run_checks(args.slice), indent=2, default=str))
-    if args.triage:
-        print(json.dumps(triage_slice(args.slice), indent=2, default=str))
+    if args.report:
+        print(json.dumps(report_slice(args.slice), indent=2, default=str))

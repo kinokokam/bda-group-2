@@ -3,7 +3,7 @@ Live monitoring checks run on every replayed slice (Live monitoring tab of the p
 
 Each check returns a dict with at least {"check", "status", ...numbers}.
 status is "pass" or "fail"; there is no warning level. The Airflow gate decides from these alone;
-the Claude agent only explains them.
+the check report (report.py) only states them.
 
 Pure pandas / numpy so the same code runs in a notebook, a test, or an Airflow task.
 """
@@ -22,6 +22,7 @@ KEY_COLUMNS = ["ts", "from_bank", "from_account", "to_bank", "to_account",
                "amount_paid", "payment_currency", "payment_format", "is_laundering"]
 AMOUNT_BANDS = [0, 100, 1_000, 10_000, 50_000, 100_000, 1_000_000, np.inf]
 PSI_FAIL = 0.25                          # common rule of thumb for PSI
+VOLUME_Z_FAIL = 3.0                      # spreads from the normal days' mean
 
 
 # --------------------------------------------------------------------------- #
@@ -107,7 +108,7 @@ def check_drift(baseline: pd.DataFrame, slice_df: pd.DataFrame,
 # 4. Volume: how many transfers, against the normal days
 # --------------------------------------------------------------------------- #
 def check_volume(slice_df: pd.DataFrame, baseline_volume: pd.Series, score_threshold: float,
-                 z_fail: float = 3.0, min_rel_std: float = 0.10) -> dict:
+                 z_fail: float = VOLUME_Z_FAIL, min_rel_std: float = 0.10) -> dict:
     """
     baseline_volume: transfers per day on the normal days the slice is compared with.
     score_threshold: the alert threshold; the day's alert count is reported, never judged.
