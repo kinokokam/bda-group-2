@@ -1,16 +1,16 @@
 currency_name,iso_code,country,basel_score
-US Dollar,USD,United States,
-Euro,EUR,Euro area,
-Yuan,CNY,China,
-Yen,JPY,Japan,
-Rupee,INR,India,
+US Dollar,USD,United States,4.83
+Euro,EUR,Euro area,4.19
+Yuan,CNY,China,7.26
+Yen,JPY,Japan,4.73
+Rupee,INR,India,5.66
 Ruble,RUB,Russia,
 Bitcoin,BTC,,
-Shekel,ILS,Israel,
-Canadian Dollar,CAD,Canada,
-Australian Dollar,AUD,Australia,
-Swiss Franc,CHF,Switzerland,
-UK Pound,GBP,United Kingdom,
-Brazil Real,BRL,Brazil,
-Saudi Riyal,SAR,Saudi Arabia,
-Mexican Peso,MXN,Mexico,
+Shekel,ILS,Israel,4.06
+Canadian Dollar,CAD,Canada,4.61
+Australian Dollar,AUD,Australia,4.13
+Swiss Franc,CHF,Switzerland,4.47
+UK Pound,GBP,United Kingdom,4.04
+Brazil Real,BRL,Brazil,5.40
+Saudi Riyal,SAR,Saudi Arabia,5.87
+Mexican Peso,MXN,Mexico,5.52
