@@ -288,6 +288,16 @@ Phase 4 (slides and rehearsal) is shared by all three; each person presents thei
     - **Every quarantined slice escalates** (1, 2 and 11 Sep in this run). "Triage note" is renamed "check report" (`CONTEXT.md`).
     - **The AI is the Helical chat** on Bedrock (§10.15, P7b).
     - **Outputs on S3:** `s3://aml-bq2/monitor/checks/`, `reports/`, `escalations.log` and `quarantine/slice=<day>/` for 1, 2 and 11 Sep.
+19. **P6 Airflow design (2 Nov, grilling with Qiaoye).**
+    - **Two DAGs.** One DAG has one schedule, and the batch must not rerun with every day. **Batch DAG**, triggered by hand once: ② `parse_patterns` Lambda → ③ curated CTAS → ④ the six marts. **Monitor DAG**: `@daily` from 1 to 11 Sep 2022 with catchup, so Airflow backfills all 11 days before the demo and each run knows its own date. This replaces the `_cursor.json` counter.
+    - **Why a batch DAG at all.** The raw data never changes, so nothing needs a rerun; it exists so "Airflow runs the pipeline from raw to results" is true (the diagram's orchestration arrow) and anyone can rebuild everything with one trigger.
+    - **Safe rebuild (write → audit → back up → publish).** Each Athena table is built into a staging prefix, audited against known numbers (curated: 5,078,336 rows, 5,177 laundering, 3,209 with a scheme, 0 missing USD; marts: the 1 Nov results), backed up to `curated_backup/<run date>/`, then copied over the live prefix and its partitions refreshed. A failed audit stops the DAG with the live tables untouched. Publish is a short non-atomic copy, acceptable for a one-off run nobody reads during; versioned folders with a view switch would be atomic but change Owen's paths. Bucket versioning is off; turning it on is Owen's call.
+    - **Ownership.** Curated is Owen's lane and the marts are Neeharika's / cnvltdfx's, though Qiaoye built both on S3. Qiaoye tells them before the first batch run, and the agent does not trigger it until Qiaoye confirms.
+    - **Left out of the batch DAG:** the FX table (fixed reference data, like the currency list; rebuilding it could change every USD amount), `fetch_fx` (writes unused ECB rates), `publish` (the old S3 site), the XGBoost notebook, and the monitor setup (cutting the daily files, training the live model, scoring the normal days). All are one-off and documented.
+    - **Monitor DAG tasks:** `run_checks` (one task for all four checks, not four tasks each rerunning all four) → `gate` → `accept_day` (one row per passed day for the monitor's daily charts, `monitor/daily/`) or `quarantine` (`monitor/quarantine/slice=<day>/`) → `report_slice` → `send_escalation` → `upload_results` (checks, report, escalation to `s3://aml-bq2/monitor/`). Each day is read from the pre-cut files in `bq2/out/stream/`.
+    - **Quarantine** keeps a day out of the monitor's daily charts only; the exposure analysis stays a one-off study of all 1–10 Sep (`CONTEXT.md`).
+    - **Slim Airflow:** one Airflow 2 container (built-in database, one task at a time), mounting `bq2/` and a folder holding only the `aml-bq2` AWS profile. Docker has about 4 GB of the laptop's 8 GB; if scoring 1 Sep runs out of memory, report it rather than work around it.
+    - **Diagram:** `bq2/docs/architecture_v2.drawio` (1920×1080) replaces the original architecture diagram.
 
 ## 11. Repo and working rules
 

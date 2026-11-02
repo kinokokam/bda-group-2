@@ -49,9 +49,10 @@ Outputs of the 2 Nov run are in `bq2/out/monitor/` and on `s3://aml-bq2/monitor/
 
 | # | Task | Notes |
 |---|---|---|
-| P6 | Airflow locally in Docker | Split into two DAGs: batch (once) and monitor (one slice per run). Today `publish >> replay_slice` would rerun the batch every slice. Compute the four checks once instead of four times. `load_slice`, `build_marts` and `quarantine` are still `EmptyOperator`. `SQL_DIR` defaults to `/opt/airflow/repo/sql`, which no longer exists after the `bq2/` move. |
+| P6 | Airflow locally in Docker | Designed 2 Nov (`AGENT_CONTEXT.md` §10.19): batch DAG once (safe rebuild) + monitor DAG daily with catchup, one slim container. Building on `qiaoye/p6-airflow`. Before the first batch run Qiaoye tells Owen and Neeharika/cnvltdfx. |
 | P7 | Helical: snapshot + monitor page | `scripts/sync_snapshot.py`: S3 → DuckDB file (format readable by Helical's `duckdb_jdbc-0.9.2`), plus monitor checks, reports and escalations tables. Then the monitor page and the analysis pages in Helical. |
 | P7b | Helical AI chat on Bedrock | Patch in `AGENT_CONTEXT.md` §10.15. Copy of the patch goes in `bda-group-2/helical/`. |
+| — | Architecture diagram | Redrawn 2 Nov as `bq2/docs/architecture_v2.drawio`; check it renders and fix layout. Changes from the original: FX from the data (not the Frankfurter Lambda), Basel score as a fixed column, Helical in Docker instead of Streamlit on EC2, daily two-DAG Airflow, no Claude agent in the monitor (check report + escalations), Claude in the Helical chat, S3 `monitor/`. Qiaoye asked on 2 Nov to do it later. |
 | P9 | Slides | Use `AGENT_CONTEXT.md` §3 numbers and §10.6, §10.10, §10.12, §10.16. |
 | — | Run the notebook once in `AML_MODE=aws` | So "XGBoost reads the clean table from S3" is literally true. |
 

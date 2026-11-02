@@ -74,7 +74,7 @@ _Avoid_: baseline day, reference day
 The rule that accepts a slice only if every check passes. It is code, never the agent.
 
 **Quarantine**:
-Where a slice that failed the gate goes, so it never reaches the dashboard.
+Where a slice that failed the gate goes, so it never reaches the monitor's daily charts. The exposure analysis is a one-off study of all of 1–10 Sep and does not change.
 _Avoid_: reject, drop
 
 **Check report**:
