@@ -54,6 +54,9 @@ class S3:
     def copy(self, src: str, dst: str) -> None:
         self.client.copy_object(Bucket=self.bucket, Key=dst, CopySource={"Bucket": self.bucket, "Key": src})
 
+    def upload(self, path, key: str) -> None:
+        self.client.upload_file(str(path), self.bucket, key)
+
     def delete(self, keys: list[str]) -> None:
         for i in range(0, len(keys), 1000):
             self.client.delete_objects(Bucket=self.bucket,
