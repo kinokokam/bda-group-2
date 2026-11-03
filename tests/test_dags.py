@@ -22,7 +22,7 @@ def downstream(dag):
 
 def test_both_dags_load(bag):
     assert bag.import_errors == {}
-    assert sorted(bag.dag_ids) == ["aml_bq2_batch", "aml_bq2_monitor"]
+    assert sorted(bag.dag_ids) == ["aml_bq2_batch", "aml_bq2_demo"]
 
 
 def test_both_start_paused_in_the_shared_stack(bag):
@@ -31,7 +31,7 @@ def test_both_start_paused_in_the_shared_stack(bag):
 
 
 def test_the_monitor_runs_once_per_day_from_1_to_11_sep(bag):
-    dag = bag.dags["aml_bq2_monitor"]
+    dag = bag.dags["aml_bq2_demo"]
     days, run = [], dag.next_dagrun_info(None)          # walk the schedule as the scheduler does
     while run is not None:
         days.append(run.data_interval.start.strftime("%Y-%m-%d"))
@@ -41,7 +41,7 @@ def test_the_monitor_runs_once_per_day_from_1_to_11_sep(bag):
 
 
 def test_the_monitor_checks_once_then_accepts_or_quarantines(bag):
-    assert downstream(bag.dags["aml_bq2_monitor"]) == {
+    assert downstream(bag.dags["aml_bq2_demo"]) == {
         "run_checks": ["gate"], "gate": ["accept_day", "quarantine"],
         "accept_day": ["report_slice"], "quarantine": ["report_slice"],
         "report_slice": ["send_escalation"], "send_escalation": ["upload_results"], "upload_results": []}

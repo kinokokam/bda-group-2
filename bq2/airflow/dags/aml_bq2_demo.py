@@ -1,5 +1,5 @@
 """
-Airflow DAG: aml_bq2_monitor  (one run per simulated day, 1-11 Sep 2022)
+Airflow DAG: aml_bq2_demo  (one run per simulated day, 1-11 Sep 2022)
 
 Catchup backfills all 11 days in order; each run checks only its own day ({{ ds }}), read from
 the pre-cut daily files in bq2/out/stream/. Airflow is the agent that runs the monitor: every
@@ -79,7 +79,7 @@ def upload_results(ds, **_):
 
 
 with DAG(
-    dag_id="aml_bq2_monitor",
+    dag_id="aml_bq2_demo",
     start_date=datetime(2022, 9, 1),
     end_date=datetime(2022, 9, 11),
     schedule="@daily",
