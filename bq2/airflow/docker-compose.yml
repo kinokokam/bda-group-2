@@ -13,6 +13,7 @@ services:
       PYTHONPATH: /opt/bq2
       AML_BUCKET: aml-bq2
       AML_SQL_DIR: /opt/bq2/sql
+      AML_FX_RATES: /aml-fx/fx_rates.csv              # same bytes as s3://aml-bq2/reference/fx/fx_rates.csv
       AWS_PROFILE: aml-bq2
       AWS_REGION: ap-southeast-1
       # Only the aml-bq2 profile, from its own folder; never all of ~/.aws (it holds ShopBack profiles)
@@ -23,4 +24,5 @@ services:
       - ../../tests:/opt/tests:ro
       - ../../pyproject.toml:/opt/pyproject.toml:ro
       - ~/.aws-aml-bq2:/aws-aml-bq2:ro
+      - ~/aml_data/aml_out/fx_rates.csv:/aml-fx/fx_rates.csv:ro   # the monitor's FX table, nothing else from ~/aml_data
       - ./.airflow-home:/opt/airflow                 # Airflow's database and logs
