@@ -46,6 +46,7 @@ with DAG(
     start_date=datetime(2026, 11, 1),
     schedule=None,                      # by hand: the raw data never changes
     catchup=False,
+    is_paused_upon_creation=True,       # the shared stack switches new DAGs on; ours write to S3
     tags=["aml", "bq2", "batch"],
 ) as dag:
     patterns = PythonOperator(task_id="parse_patterns", python_callable=parse_patterns)

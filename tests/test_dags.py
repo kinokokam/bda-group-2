@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("airflow")
+pytest.importorskip("airflow.models")   # bq2/airflow/ (the DAG folder) also imports as "airflow"
 from airflow.models import DagBag  # noqa: E402
 
 DAGS = Path(__file__).resolve().parents[1] / "bq2" / "airflow" / "dags"
@@ -23,6 +23,11 @@ def downstream(dag):
 def test_both_dags_load(bag):
     assert bag.import_errors == {}
     assert sorted(bag.dag_ids) == ["aml_bq2_batch", "aml_bq2_monitor"]
+
+
+def test_both_start_paused_in_the_shared_stack(bag):
+    """The team's stack switches new DAGs on; ours write to S3, so a person switches them on."""
+    assert all(dag.is_paused_upon_creation for dag in bag.dags.values())
 
 
 def test_the_monitor_runs_once_per_day_from_1_to_11_sep(bag):

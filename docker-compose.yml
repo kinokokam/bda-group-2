@@ -15,6 +15,8 @@ x-airflow-common:
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-boto3 awscli pyarrow pandas scikit-learn matplotlib kaggle xgboost}
     PYTHONPATH: /opt/airflow:/opt/airflow/dags
+    # BQ2 monitor: its FX table is a copy of s3://aml-bq2/reference/fx/fx_rates.csv in bq2/out/
+    AML_FX_RATES: /opt/airflow/out/fx_rates.csv
   volumes:
     # Airflow scans the dags folder recursively, so one stack serves both DAGs.
     - ./bq1/airflow/dags:/opt/airflow/dags/bq1
@@ -24,10 +26,14 @@ x-airflow-common:
     - ./bq1/spark:/opt/airflow/spark
     - ./bq1/models:/opt/airflow/models
     - ./bq2/monitoring:/opt/airflow/monitoring
-    - ./bq2/agent:/opt/airflow/agent
+    - ./bq2/pipeline:/opt/airflow/pipeline     # BQ2 safe Athena rebuild (batch DAG)
+    - ./bq2/sql:/opt/airflow/sql
+    - ./bq2/reference:/opt/airflow/reference
+    - ./bq2/out:/opt/airflow/out               # BQ2 daily slices, live model, monitor results (git-ignored)
     - ./logs:/opt/airflow/logs
     - ./:/opt/airflow/repo
     - ./.env:/opt/airflow/.env:ro
+    # Set AWS_DIR in .env to a folder whose .aws/ holds only the team profile, if ~/.aws has others
     - ${AWS_DIR:-~}/.aws:/home/airflow/.aws:ro
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:

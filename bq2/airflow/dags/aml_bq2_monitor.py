@@ -86,6 +86,7 @@ with DAG(
     catchup=True,                       # backfill all 11 days before the demo
     max_active_runs=1,                  # days run in order
     default_args={"retries": 1, "retry_delay": timedelta(minutes=1)},
+    is_paused_upon_creation=True,       # the shared stack switches new DAGs on; ours write to S3
     tags=["aml", "bq2", "monitor"],
 ) as dag:
     checks = PythonOperator(task_id="run_checks", python_callable=run_checks)
