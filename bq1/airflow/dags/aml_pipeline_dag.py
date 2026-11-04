@@ -189,7 +189,7 @@ echo "=== Staging training script ==="
 aws s3 cp {script_s3_uri} /tmp/train_xgboost.py
 
 echo "=== Installing dependencies ==="
-python3 -m pip install --no-cache-dir --user xgboost scikit-learn matplotlib pyarrow boto3
+python3 -m pip install --no-cache-dir --user xgboost scikit-learn matplotlib pyarrow boto3 pandas joblib
 
 echo "=== Running XGBoost Pipeline on AWS EMR ==="
 USER_SITE=$(python3 -m site --user-site 2>/dev/null || echo "/home/hadoop/.local/lib/python3.9/site-packages")

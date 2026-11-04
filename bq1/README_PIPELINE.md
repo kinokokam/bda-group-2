@@ -92,14 +92,22 @@ Here is what each hyperparameter in [`models/train_xgboost.py`](models/train_xgb
 
 | Hyperparameter | Value | AML Business & Technical Rationale |
 | :--- | :--- | :--- |
-| `scale_pos_weight` | $N_{\text{neg}} / N_{\text{pos}}$ (≈ 150–200) | **Addresses Extreme Class Imbalance**: Without this, the model would simply predict "0" (legitimate) 99.5% of the time, achieving 99.5% accuracy while letting 100% of money launderers slip through. This tells XGBoost: *"A missed money launderer (False Negative) is 200× more costly than a false alarm (False Positive)."* |
+| `scale_pos_weight` | Validation-tuned around $N_{\text{neg}} / N_{\text{pos}}$ | **Addresses Extreme Class Imbalance**: Without this, the model would simply predict "0" (legitimate) 99.5% of the time, achieving 99.5% accuracy while letting 100% of money launderers slip through. The training job tests the base weight and a higher recall-focused weight on validation data. |
 | `eval_metric` | `"aucpr"` | **Optimizes Precision-Recall AUC**: ROC-AUC is misleading on imbalanced data because massive legitimate transactions inflate the curve. PR-AUC focuses strictly on how well the model isolates actual laundering cases. |
 | `max_depth` | `6` | **Captures Laundering Synergies**: Money laundering is rarely a single metric; it is an interaction (e.g., Cross-Border + Off-Peak Hour + Amount between $9k–$10k + Spike in Burst Ratio). Depth 6 allows up to $2^6 = 64$ decision leaves to capture these multi-hop combinations without overfitting. |
 | `learning_rate` | `0.05` | **Prevents Erratic Step Sizes**: A smaller shrinkage rate ($\eta = 0.05$) combined with more trees prevents the algorithm from over-correcting on isolated anomalies. |
-| `n_estimators` | `300` | Total number of boosting rounds (trees) to build. |
-| `early_stopping_rounds` | `30` | **Prevents Temporal Overfitting**: Evaluates on the chronological validation split. If validation PR-AUC does not improve for 30 consecutive iterations, training halts automatically. |
+| `n_estimators` | `500` maximum | Total number of boosting rounds (trees) to build; early stopping selects the effective count. |
+| `early_stopping_rounds` | `40` | **Prevents Temporal Overfitting**: Evaluates on the chronological validation split. If validation PR-AUC does not improve for 40 consecutive iterations, training halts automatically. |
 | `subsample` / `colsample_bytree` | `0.8` / `0.8` | **Stochastic Regularization**: Each tree is trained on a random 80% sample of rows and 80% sample of feature columns. This prevents single dominant features (like transaction amount) from hijacking every tree. |
 | `tree_method` | `"hist"` | **High-Speed Execution**: Uses histogram-based binning (similar to LightGBM), accelerating training by $5\times$ to $10\times$ on large transaction volumes. |
+
+The training job compares three recall-focused XGBoost configurations on the
+validation split and selects the one with the highest exact F3 score (penalizing
+missed money launderers 9× heavier than false alarms). It never uses test
+labels for model or threshold selection. The final alert threshold is
+selected from actual calibrated validation scores rather than a coarse fixed
+grid. Unknown categorical values use `-1`, matching the Flink scorer, instead
+of colliding with the first known category.
 
 ---
 

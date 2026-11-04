@@ -57,6 +57,8 @@ from sklearn.metrics import (
     recall_score
 )
 
+UNKNOWN_CATEGORY_CODE = -1
+
 # Automatically load credentials from .env if present
 def _load_env_file():
     for base in [os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), os.getcwd()]:
@@ -186,7 +188,12 @@ def prepare_features(train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.D
             arrays.append(df[col].fillna(0).astype(np.float32).values)
         for cat in cat_cols:
             mapping = category_maps[cat]
-            mapped = df[cat].astype(str).map(mapping).fillna(0).astype(np.float32).values
+            mapped = (
+                df[cat].astype(str).map(mapping)
+                .fillna(UNKNOWN_CATEGORY_CODE)
+                .astype(np.float32)
+                .values
+            )
             arrays.append(mapped)
         return np.column_stack(arrays).astype(np.float32)
 
@@ -199,15 +206,69 @@ def prepare_features(train_df: pd.DataFrame, val_df: pd.DataFrame, test_df: pd.D
     return X_train, y_train, X_val, y_val, X_test, y_test, feature_cols, category_maps
 
 
+def _best_fbeta_threshold(scores: np.ndarray, y_true: np.ndarray, beta: float = 3.0) -> tuple[float, float]:
+    """Find the exact score threshold with the highest validation F-beta (default beta=3 for high AML recall)."""
+    order = np.argsort(scores)[::-1]
+    ordered_scores = scores[order]
+    ordered_labels = y_true[order].astype(np.int64)
+    cumulative_tp = np.cumsum(ordered_labels)
+    cumulative_fp = np.cumsum(1 - ordered_labels)
+    total_positive = max(int(np.sum(y_true)), 1)
+    cumulative_fn = total_positive - cumulative_tp
+
+    boundaries = np.r_[np.flatnonzero(np.diff(ordered_scores)) + 1, len(scores)]
+    tp = cumulative_tp[boundaries - 1]
+    fp = cumulative_fp[boundaries - 1]
+    fn = cumulative_fn[boundaries - 1]
+    precision = tp / np.maximum(tp + fp, 1)
+    recall = tp / np.maximum(tp + fn, 1)
+    beta_sq = beta ** 2
+    fbeta = (1 + beta_sq) * precision * recall / np.maximum(beta_sq * precision + recall, 1e-12)
+    best = int(np.argmax(fbeta))
+    return float(ordered_scores[boundaries[best] - 1]), float(fbeta[best])
+
+
+def _best_f2_threshold(scores: np.ndarray, y_true: np.ndarray) -> tuple[float, float]:
+    """Backward-compatible alias for F2 score threshold search."""
+    return _best_fbeta_threshold(scores, y_true, beta=2.0)
+
+
+def _candidate_configs(scale_pos_weight: float) -> list[dict]:
+    """Return a small recall-focused validation tuning grid."""
+    return [
+        {
+            "max_depth": 6,
+            "min_child_weight": 1,
+            "gamma": 0.0,
+            "reg_lambda": 1.0,
+            "scale_pos_weight": scale_pos_weight,
+        },
+        {
+            "max_depth": 4,
+            "min_child_weight": 1,
+            "gamma": 0.0,
+            "reg_lambda": 1.0,
+            "scale_pos_weight": scale_pos_weight,
+        },
+        {
+            "max_depth": 6,
+            "min_child_weight": 5,
+            "gamma": 0.0,
+            "reg_lambda": 5.0,
+            "scale_pos_weight": scale_pos_weight * 1.5,
+        },
+    ]
+
+
 def train_model(X_train, y_train, X_val, y_val, feature_names):
     """
     Trains XGBoost classifier configured with prescribed AML hyperparameters:
     - scale_pos_weight: N_neg / N_pos
     - eval_metric: "aucpr"
-    - max_depth: 6
+    - max_depth, min_child_weight, gamma and reg_lambda are selected on validation F3
     - learning_rate: 0.05
-    - n_estimators: 300
-    - early_stopping_rounds: 30
+    - n_estimators: up to 500 with early stopping
+    - early_stopping_rounds: 40
     - subsample: 0.8
     - colsample_bytree: 0.8
     - tree_method: "hist"
@@ -222,27 +283,40 @@ def train_model(X_train, y_train, X_val, y_val, feature_names):
     logger.info(f"Configuring scale_pos_weight = {scale_pos_weight:.2f}")
     logger.info("Initializing native XGBoost Classifier with prescribed AML hyperparameters...")
 
-    model = xgb.XGBClassifier(
-        n_estimators=300,
-        max_depth=6,
-        learning_rate=0.05,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        scale_pos_weight=scale_pos_weight,
-        eval_metric="aucpr",
-        early_stopping_rounds=30,
-        tree_method="hist",
-        random_state=42,
-        n_jobs=-1
-    )
-    model.fit(
-        X_train,
-        y_train,
-        eval_set=[(X_val, y_val)],
-        verbose=10
-    )
-    logger.info("XGBoost model training completed successfully.")
-    return model, "xgboost", scale_pos_weight
+    best_model = None
+    best_config = None
+    best_f3 = -1.0
+    for candidate_number, config in enumerate(_candidate_configs(scale_pos_weight), start=1):
+        logger.info("Training validation candidate %d/%d: %s", candidate_number, 3, config)
+        model = xgb.XGBClassifier(
+            n_estimators=500,
+            max_depth=config["max_depth"],
+            min_child_weight=config["min_child_weight"],
+            gamma=config["gamma"],
+            reg_lambda=config["reg_lambda"],
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            scale_pos_weight=config["scale_pos_weight"],
+            eval_metric="aucpr",
+            early_stopping_rounds=40,
+            tree_method="hist",
+            random_state=42,
+            n_jobs=-1,
+        )
+        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=50)
+        val_scores = model.predict_proba(X_val)[:, 1]
+        _, candidate_f3 = _best_fbeta_threshold(val_scores, y_val, beta=3.0)
+        logger.info("Candidate %d validation F3: %.4f", candidate_number, candidate_f3)
+        if candidate_f3 > best_f3:
+            best_model = model
+            best_config = config
+            best_f3 = candidate_f3
+
+    if best_model is None or best_config is None:
+        raise RuntimeError("No XGBoost validation candidate completed.")
+    logger.info("Selected validation candidate with F3: %.4f", best_f3)
+    return best_model, "xgboost", best_config["scale_pos_weight"], best_config
 
 
 def fit_probability_calibrator_and_tune_threshold(model, X_val, y_val):
@@ -251,7 +325,7 @@ def fit_probability_calibrator_and_tune_threshold(model, X_val, y_val):
     Fits Isotonic Regression on validation predictions to map boosted scores back
     to true posterior probabilities P(Is Laundering = 1 | x).
     Sweeps thresholds on calibrated probabilities to identify the optimal alert threshold tau*
-    that maximizes the F2 score (beta=2, Recall-weighted for AML compliance).
+    that maximizes the F3 score (beta=3, Recall-weighted for AML compliance).
     """
     logger.info("Fitting Isotonic Probability Calibrator on held-out validation set...")
     val_raw_scores = model.predict_proba(X_val)[:, 1]
@@ -266,32 +340,27 @@ def fit_probability_calibrator_and_tune_threshold(model, X_val, y_val):
     val_calibrated_scores = calibrator.predict(val_raw_scores)
     val_prauc = float(average_precision_score(y_val, val_calibrated_scores)) if len(np.unique(y_val)) > 1 else 0.0
 
-    # Operational Decision Threshold Sweep (tau* that maximizes F2 score: Recall-weighted)
+    # Select the exact validation score that maximizes F3.
     best_thresh = 0.0500
+    best_f3 = 0.0
     best_f2 = 0.0
     val_recall_at_best = 0.0
     val_prec_at_best = 0.0
 
     if len(np.unique(y_val)) > 1:
-        # Fine-grained sweep from 0.005 to 0.800 (160 steps)
-        thresholds = np.linspace(0.005, 0.80, 160)
-        for t in thresholds:
-            preds = (val_calibrated_scores >= t).astype(int)
-            f2 = float(fbeta_score(y_val, preds, beta=2, zero_division=0))
-            if f2 > best_f2:
-                best_f2 = f2
-                best_thresh = float(t)
+        best_thresh, best_f3 = _best_fbeta_threshold(val_calibrated_scores, y_val, beta=3.0)
 
         best_preds = (val_calibrated_scores >= best_thresh).astype(int)
         val_recall_at_best = float(recall_score(y_val, best_preds, zero_division=0))
         val_prec_at_best = float(precision_score(y_val, best_preds, zero_division=0))
+        best_f2 = float(fbeta_score(y_val, best_preds, beta=2, zero_division=0))
 
     logger.info(
         f"Validation Calibrated PR-AUC: {val_prauc:.4f} | "
-        f"Optimal Alert Threshold (tau* based on F2): {best_thresh:.4f} "
-        f"(F2: {best_f2:.4f}, Recall: {val_recall_at_best:.4f}, Precision: {val_prec_at_best:.4f})"
+        f"Optimal Alert Threshold (tau* based on F3): {best_thresh:.4f} "
+        f"(F3: {best_f3:.4f}, F2: {best_f2:.4f}, Recall: {val_recall_at_best:.4f}, Precision: {val_prec_at_best:.4f})"
     )
-    return calibrator, round(best_thresh, 4), round(best_f2, 4), round(val_prauc, 4)
+    return calibrator, round(best_thresh, 4), round(best_f3, 4), round(best_f2, 4), round(val_prauc, 4)
 
 
 def evaluate_model(model, calibrator, optimal_threshold: float, X_test, y_test, output_eval_dir: str):
@@ -312,6 +381,7 @@ def evaluate_model(model, calibrator, optimal_threshold: float, X_test, y_test, 
     recall = float(recall_score(y_test, y_pred, zero_division=0))
     f1 = float(f1_score(y_test, y_pred, zero_division=0))
     f2 = float(fbeta_score(y_test, y_pred, beta=2, zero_division=0))
+    f3 = float(fbeta_score(y_test, y_pred, beta=3, zero_division=0))
 
     # Top-K Alert Capacity Recall (Top 1%, 2%, 5%, 10% daily triage volume)
     total_tx = len(y_test)
@@ -328,7 +398,7 @@ def evaluate_model(model, calibrator, optimal_threshold: float, X_test, y_test, 
 
     logger.info(
         f"Test Set Evaluation: PR-AUC={pr_auc:.4f} | ROC-AUC={roc_auc:.4f} | "
-        f"Recall={recall:.4f} | Precision={precision:.4f} | F2={f2:.4f} | F1={f1:.4f}"
+        f"Recall={recall:.4f} | Precision={precision:.4f} | F3={f3:.4f} | F2={f2:.4f} | F1={f1:.4f}"
     )
     logger.info(f"Top-K Alert Capacity Recall: {top_k_recalls}")
 
@@ -338,9 +408,10 @@ def evaluate_model(model, calibrator, optimal_threshold: float, X_test, y_test, 
         "roc_auc": round(roc_auc, 4),
         "recall": round(recall, 4),
         "precision": round(precision, 4),
+        "f3_score": round(f3, 4),
         "f2_score": round(f2, 4),
         "f1_score": round(f1, 4),
-        "optimization_metric": "f2_score",
+        "optimization_metric": "f3_score",
         "alert_threshold_tau": optimal_threshold,
         "test_sample_count": total_tx,
         "test_positive_count": int(np.sum(y_test)),
@@ -498,10 +569,12 @@ def run_training_pipeline(
     )
 
     # 4. Train Model with Prescribed Hyperparameters (Arrow ④)
-    model, model_type, scale_pos_weight = train_model(X_train, y_train, X_val, y_val, feature_names)
+    model, model_type, scale_pos_weight, selected_hyperparameters = train_model(
+        X_train, y_train, X_val, y_val, feature_names
+    )
 
     # 5. Probability Calibration & Optimal Alert Threshold Determination (Artifact 3 & 4)
-    calibrator, optimal_threshold, best_val_f2, val_prauc = fit_probability_calibrator_and_tune_threshold(
+    calibrator, optimal_threshold, best_val_f3, best_val_f2, val_prauc = fit_probability_calibrator_and_tune_threshold(
         model, X_val, y_val
     )
 
@@ -513,25 +586,29 @@ def run_training_pipeline(
 
     # 7. Build Operational Config Dictionary
     config_dict = {
-        "model_version": "v1.0",
+        "model_version": "v1.2",
         "calibrated_threshold": optimal_threshold,
         "top_k_daily_capacity": 200,
         "validation_prauc": val_prauc,
         "test_prauc": metrics["pr_auc"],
         "scale_pos_weight": round(scale_pos_weight, 2),
-        "optimization_metric": "f2_score",
+        "optimization_metric": "f3_score",
+        "optimal_val_f3_score": best_val_f3,
         "optimal_val_f2_score": best_val_f2,
+        "test_f3_score": metrics["f3_score"],
         "test_f2_score": metrics["f2_score"],
         "test_f1_score": metrics["f1_score"],
         "test_recall": metrics["recall"],
         "test_precision": metrics["precision"],
         "hyperparameters": {
-            "scale_pos_weight": round(scale_pos_weight, 2),
+            **{
+                key: round(value, 4) if isinstance(value, float) else value
+                for key, value in selected_hyperparameters.items()
+            },
             "eval_metric": "aucpr",
-            "max_depth": 6,
             "learning_rate": 0.05,
-            "n_estimators": 300,
-            "early_stopping_rounds": 30,
+            "n_estimators": 500,
+            "early_stopping_rounds": 40,
             "subsample": 0.8,
             "colsample_bytree": 0.8,
             "tree_method": "hist"
