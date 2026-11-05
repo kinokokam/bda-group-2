@@ -53,6 +53,7 @@ Outputs of the 2 Nov run are in `bq2/out/monitor/` and on `s3://aml-bq2/monitor/
 | P7 | Helical: snapshot + monitor page | `scripts/sync_snapshot.py`: S3 → DuckDB file (format readable by Helical's `duckdb_jdbc-0.9.2`), plus monitor checks, reports and escalations tables. Then the monitor page and the analysis pages in Helical. |
 | P7b | Helical AI chat on Bedrock | Patch in `AGENT_CONTEXT.md` §10.15. Copy of the patch goes in `bda-group-2/helical/`. |
 | — | Architecture diagram | Redrawn 2 Nov as `bq2/docs/architecture_v2.drawio`; check it renders and fix layout. Changes from the original: FX from the data (not the Frankfurter Lambda), Basel score as a fixed column, Helical in Docker instead of Streamlit on EC2, daily two-DAG Airflow, no Claude agent in the monitor (check report + escalations), Claude in the Helical chat, S3 `monitor/`. Qiaoye asked on 2 Nov to do it later. |
+| — | Demo video (option, decided later) | Qiaoye, 5 Nov: instead of only showing finished runs, film a replay (unpause `aml_bq2_demo`, watch the 11 days run, Helical refreshing from the snapshot) and play the video as the "live demo". A video removes the on-stage risk (laptop sleep broke the 2 Sep upload once). Needs P7 (snapshot sync, Helical page) first. Supersedes "pre-run, not live" (AGENT_CONTEXT §10.16) only if chosen. |
 | P9 | Slides | Use `AGENT_CONTEXT.md` §3 numbers and §10.6, §10.10, §10.12, §10.16. |
 | — | Run the notebook once in `AML_MODE=aws` | So "XGBoost reads the clean table from S3" is literally true. |
 
