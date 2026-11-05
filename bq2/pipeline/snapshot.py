@@ -14,6 +14,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import re
 from pathlib import Path
 
 import duckdb
@@ -22,6 +23,8 @@ import pandas as pd
 SNAPSHOT_PATH = Path(__file__).resolve().parents[1] / "out" / "snapshot" / "aml.duckdb"
 STORAGE_VERSION = "v1.5.0"
 CHECKS = ["recon", "quality", "drift", "volume"]
+MARTS = {"channel_lift", "currency_risk", "bank_concentration", "corridors", "amount_hour", "typology_profile"}
+MODEL_TABLE = re.compile(r"[a-z0-9_]{1,40}")     # table names come from S3 keys: only plain ones pass
 
 
 def _json(store, prefix: str, through: str | None) -> list[dict]:
@@ -77,7 +80,7 @@ def monitor_tables(store, through: str | None = None) -> dict[str, pd.DataFrame]
 
 
 def analysis_tables(store) -> dict[str, pd.DataFrame]:
-    """Each Athena mart (all its part files) and each marts/model/ CSV."""
+    """Each known Athena mart (all its part files) and each plainly named marts/model/ CSV."""
     parts: dict[str, list[pd.DataFrame]] = {}
     out = {}
     for key in store.keys("marts/"):
@@ -85,9 +88,9 @@ def analysis_tables(store) -> dict[str, pd.DataFrame]:
         if len(bits) != 3 or not bits[2]:
             continue                                   # folder markers
         if bits[1] == "model":
-            if key.endswith(".csv"):
+            if key.endswith(".csv") and MODEL_TABLE.fullmatch(Path(key).stem):
                 out[f"model_{Path(key).stem}"] = pd.read_csv(io.BytesIO(store.get(key)))
-        else:
+        elif bits[1] in MARTS:
             parts.setdefault(bits[1], []).append(pd.read_parquet(io.BytesIO(store.get(key))))
     for name, frames in parts.items():
         out[f"mart_{name}"] = pd.concat(frames, ignore_index=True)
@@ -106,7 +109,7 @@ def build_snapshot(store, path, through: str | None = None) -> dict[str, int]:
         con.execute(f"ATTACH '{tmp}' AS snap (STORAGE_VERSION '{STORAGE_VERSION}')")
         for name, df in tables.items():
             con.register("frame", df)
-            con.execute(f"CREATE TABLE snap.{name} AS SELECT * FROM frame")
+            con.execute(f'CREATE TABLE snap."{name}" AS SELECT * FROM frame')
             con.unregister("frame")
         con.execute("DETACH snap")
     finally:

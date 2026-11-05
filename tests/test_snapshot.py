@@ -136,3 +136,16 @@ def test_a_rebuild_replaces_the_old_file_whole(tmp_path):
     con = duckdb.connect(str(path), read_only=True)
     assert rows(con, "SELECT count(*) FROM monitor_slices") == [(2,)]
     assert sorted(p.name for p in tmp_path.iterdir()) == ["aml.duckdb"]
+
+
+def test_only_the_known_marts_and_model_tables_become_tables(tmp_path):
+    """Table names come from S3 keys, so anything unexpected is skipped rather than trusted."""
+    s = store()
+    s.objects['marts/x; DROP TABLE monitor_slices; --/p'] = parquet(pd.DataFrame({"a": [1]}))
+    s.objects["marts/scratch/p"] = parquet(pd.DataFrame({"a": [1]}))
+    s.objects['marts/model/bad name".csv'] = b"a\n1\n"
+    path = tmp_path / "aml.duckdb"
+    build_snapshot(s, path)
+    con = duckdb.connect(str(path), read_only=True)
+    names = {r[0] for r in rows(con, "SELECT table_name FROM information_schema.tables")}
+    assert {n for n in names if not n.startswith("monitor_")} == {"mart_channel_lift", "model_metrics"}
