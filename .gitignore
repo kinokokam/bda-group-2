@@ -63,3 +63,6 @@ bq1/todo.md
 
 # --- claude code local config ---
 .claude/
+
+# Airflow container state (database, logs)
+bq2/airflow/.airflow-home/

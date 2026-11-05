@@ -161,6 +161,7 @@ def slice_facts(sid: str, scored: pd.DataFrame, base_slice: pd.DataFrame, base_v
         "normal_days_compared": len(base_volume),
         "normal_rows_per_day": int(round(base_volume.mean())),
         "normal_laundering_rate_pct": round(100 * float(base_slice["is_laundering"].mean()), 3),
+        "format_mix_pct": {f: round(100 * float(share), 1) for f, share in fmt.items()},
         "top_payment_format": top,
         "top_format_share_pct": round(100 * float(fmt.iloc[0]), 1) if top else None,
         "top_format_normal_share_pct": round(100 * float(normal_fmt.get(top, 0.0)), 1) if top else None,

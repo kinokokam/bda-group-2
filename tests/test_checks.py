@@ -82,6 +82,7 @@ def test_report_card_lists_the_top_alerts_and_the_biggest_shift_from_normal_days
                                       "amount_usd": 100.0, "score": 0.99}
     assert facts["biggest_shifts"][0] == {"what": "payment_format: Reinvestment",
                                           "today_pct": 70.0, "normal_pct": 10.0}
+    assert facts["format_mix_pct"] == {"Reinvestment": 70.0, "ACH": 20.0, "Cash": 10.0}
 
 
 def test_unknown_text_from_the_data_never_reaches_the_report_card():
