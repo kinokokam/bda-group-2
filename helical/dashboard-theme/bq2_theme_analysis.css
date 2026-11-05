@@ -37,7 +37,7 @@
 .react-grid-item .ant-pagination-item-active a { color: #FFFFFF !important; }
 .react-grid-item .ant-pagination-item, .react-grid-item .ant-pagination-prev .ant-pagination-item-link, .react-grid-item .ant-pagination-next .ant-pagination-item-link, .react-grid-item .ant-select-selector { border-radius: 999px !important; }
 .ant-btn-primary { background: #14574A !important; border-color: #14574A !important; border-radius: 999px !important; }
-/* header card: the grid will not let it grow or move, so CSS pins it to the top, gives it 290px and moves every other card down (190px on Monitor, 300px on Analysis, whose first row starts at top 0) */
+/* header card: the grid will not let it grow or move, so CSS pins it to the top, gives it 290px and moves every other card down by 190px */
 .react-grid-item:has(.bq2-hero) { top: 0 !important; left: 0 !important; width: 100% !important; height: 290px !important; overflow: visible !important; z-index: 5; }
 .react-grid-item:not(:has(.bq2-hero)) { margin-top: 300px !important; }
 .bq2-hero, .bq2-hero * { pointer-events: none; }

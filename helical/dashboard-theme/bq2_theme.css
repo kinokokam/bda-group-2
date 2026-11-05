@@ -41,3 +41,6 @@
 .react-grid-item:has(.bq2-hero) { top: 0 !important; left: 0 !important; width: 100% !important; height: 290px !important; overflow: visible !important; z-index: 5; }
 .react-grid-item:not(:has(.bq2-hero)) { margin-top: 190px !important; }
 .bq2-hero, .bq2-hero * { pointer-events: none; }
+/* Monitor only: taller Check report and Escalations cards (item ids are fixed in BQ2_Monitor.efwdd) */
+#item-esXak { height: 920px !important; }
+#item-0fb6l { margin-top: 350px !important; height: 820px !important; }
