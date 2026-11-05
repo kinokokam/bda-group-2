@@ -88,3 +88,11 @@ _Avoid_: alert (an alert is a flagged transfer)
 **Snapshot**:
 The local copy of the S3 data, result tables, checks and check reports that the dashboard reads. S3 stays the source of truth.
 _Avoid_: cache, extract
+
+**Analysis page**:
+The dashboard page that answers BQ2 from the exposure analysis (1–10 Sep): where laundering concentrates and how each scheme moves money. It never changes.
+_Avoid_: batch dashboard, Part 1 dashboard
+
+**Monitor page**:
+The dashboard page that shows the monitor's slices: each slice's check results, the daily charts from accepted slices, check reports and escalations. It grows one slice at a time.
+_Avoid_: live dashboard, real-time dashboard

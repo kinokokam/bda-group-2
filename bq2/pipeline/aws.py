@@ -1,5 +1,5 @@
 """
-Thin boto3 adapters for pipeline.rebuild: Athena queries as row dicts, and S3 list/copy/delete.
+Thin boto3 adapters for pipeline.rebuild: Athena queries as row dicts, and S3 list/get/copy/upload/delete.
 AWS access comes from the named profile only (AWS_PROFILE=aml-bq2).
 """
 from __future__ import annotations
@@ -53,6 +53,9 @@ class S3:
 
     def copy(self, src: str, dst: str) -> None:
         self.client.copy_object(Bucket=self.bucket, Key=dst, CopySource={"Bucket": self.bucket, "Key": src})
+
+    def get(self, key: str) -> bytes:
+        return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
 
     def upload(self, path, key: str) -> None:
         self.client.upload_file(str(path), self.bucket, key)

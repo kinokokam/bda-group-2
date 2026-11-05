@@ -1,0 +1,8 @@
+# Add-on for Helical Insight's own docker-compose.yml (copy next to it, in
+# ~/helical/helicalinsight-7.0.0-docker/). It lets Helical read the BQ2 snapshot.
+# AML_SNAPSHOT_DIR defaults to this repo's bq2/out/snapshot when the repo is at
+# ~/Documents/GitHub/bda-group-2; set it if yours is elsewhere.
+services:
+  hiee:
+    volumes:
+      - ${AML_SNAPSHOT_DIR:-../../Documents/GitHub/bda-group-2/bq2/out/snapshot}:/snapshot:ro

@@ -6,6 +6,7 @@ the pre-cut daily files in bq2/out/stream/. Airflow is the agent that runs the m
 step is code, with no model call. The AI chat lives in the Helical dashboard instead.
 
     run_checks -> gate -> accept_day | quarantine -> report_slice -> send_escalation -> upload_results
+        -> sync_snapshot
 
 Every task can be rerun: it rewrites its own day's files, and the escalation log keeps one entry per day.
 """
@@ -78,6 +79,15 @@ def upload_results(ds, **_):
         s3.upload(ESCALATIONS_LOG, "monitor/escalations.log")
 
 
+def sync_snapshot(ds, **_):
+    """Rebuild the Helical snapshot from S3 with the slices up to this day, so the monitor page grows daily."""
+    import os
+
+    from pipeline.aws import S3
+    from pipeline.snapshot import SNAPSHOT_PATH, build_snapshot
+    return build_snapshot(S3(os.environ.get("AML_BUCKET", "aml-bq2")), SNAPSHOT_PATH, through=ds)
+
+
 with DAG(
     dag_id="aml_bq2_demo",
     start_date=datetime(2022, 9, 1),
@@ -97,5 +107,6 @@ with DAG(
                             trigger_rule="none_failed_min_one_success")
     escalation = PythonOperator(task_id="send_escalation", python_callable=send_escalation)
     upload = PythonOperator(task_id="upload_results", python_callable=upload_results)
+    sync = PythonOperator(task_id="sync_snapshot", python_callable=sync_snapshot)
 
-    checks >> gate >> [accept, hold] >> report >> escalation >> upload
+    checks >> gate >> [accept, hold] >> report >> escalation >> upload >> sync
