@@ -1,4 +1,4 @@
-# Agent handover: Qiaoye's lane, status as of 2 Nov 2026
+# Agent handover: Qiaoye's lane, status as of 5 Nov 2026
 
 **Who you work for:** Qiaoye. Qiaoye's lane is the XGBoost notebook, the Airflow DAG, the four checks, the check report and the monitor page. As of 23 Oct the dashboard is Helical Insight, which also hosts the monitor page and the AI chat.
 
@@ -16,7 +16,7 @@
 ## 0. Where the work is (git)
 
 - **Updated 1 Nov (new laptop).** All the earlier `qiaoye/*` work is merged into GitHub `main`. Ryan's 27 Oct reorganisation moved BQ2 code and docs under `bq2/`.
-- **P3–P5 (2 Nov)** are on branch `qiaoye/p3-p5-daily`, committed, waiting for Qiaoye to push and open the PR.
+- **P3–P5 (2 Nov)** merged as PR #7. **P6** pushed by Qiaoye on `qiaoye/p6-airflow`. **P7** is on `qiaoye/p7-helical` (branched from P6), committed, not pushed.
 - **Git rule (1 Nov):** the agent commits on `qiaoye/*` branches only. Qiaoye pushes and opens PRs; the agent never pushes, and nothing goes straight to `main`.
 - `bq2/out/` is git-ignored: replay slices, the live model, checks, check reports and the escalation log. The old laptop's `out/` was lost; S3 is now the source of truth (`AGENT_CONTEXT.md` §10.17).
 
@@ -50,12 +50,41 @@ Outputs of the 2 Nov run are in `bq2/out/monitor/` and on `s3://aml-bq2/monitor/
 | # | Task | Notes |
 |---|---|---|
 | P6 | Airflow locally in Docker | Monitor DAG `aml_bq2_demo` (the BQ2 demo: Grid view, then 1 Sep vs 5 Sep in Graph view) done 4 Nov in the team's shared stack: `docker compose up -d` from the repo root, UI at http://localhost:8080 (admin / admin by default). All 11 days match the 2 Nov reports (`AGENT_CONTEXT.md` §10.19); results on `s3://aml-bq2/monitor/`. Monitor setup before a fresh run: the daily slices and live model in `bq2/out/`, plus `aws s3 cp s3://aml-bq2/reference/fx/fx_rates.csv bq2/out/fx_rates.csv`. Keep the laptop awake during runs. Batch DAG built and tested with fakes, **not run yet**: Qiaoye tells Owen and Neeharika/cnvltdfx first. |
-| P7 | Helical: snapshot + monitor page + analysis page | **Snapshot done 5 Nov** (`pipeline/snapshot.py`, `sync_snapshot` task, read through Helical's swapped 1.5.6 driver; §10.20). Next: the DuckDB data source in Helical, then the monitor page and analysis page. Qiaoye tells Neeharika that Qiaoye builds the analysis page. |
+| P7 | Helical: snapshot + monitor page + analysis page | **Snapshot done 5 Nov** (`pipeline/snapshot.py`, `sync_snapshot` task, read through Helical's swapped 1.5.6 driver; §10.20). Data source and metadata done in Helical; reports in progress, see §3a. Qiaoye tells Neeharika that Qiaoye builds the analysis page. |
 | P7b | Helical AI chat on Bedrock | Patch in `AGENT_CONTEXT.md` §10.15. Copy of the patch goes in `bda-group-2/helical/`. |
 | — | Architecture diagram | Redrawn 2 Nov as `bq2/docs/architecture_v2.drawio`; check it renders and fix layout. Changes from the original: FX from the data (not the Frankfurter Lambda), Basel score as a fixed column, Helical in Docker instead of Streamlit on EC2, daily two-DAG Airflow, no Claude agent in the monitor (check report + escalations), Claude in the Helical chat, S3 `monitor/`. Qiaoye asked on 2 Nov to do it later. |
 | — | Demo video (option, decided later) | Qiaoye, 5 Nov: instead of only showing finished runs, film a replay (unpause `aml_bq2_demo`, watch the 11 days run, Helical refreshing from the snapshot) and play the video as the "live demo". A video removes the on-stage risk (laptop sleep broke the 2 Sep upload once). Needs P7 (snapshot sync, Helical page) first. Supersedes "pre-run, not live" (AGENT_CONTEXT §10.16) only if chosen. |
 | P9 | Slides | Use `AGENT_CONTEXT.md` §3 numbers and §10.6, §10.10, §10.12, §10.16. |
 | — | Run the notebook once in `AML_MODE=aws` | So "XGBoost reads the clean table from S3" is literally true. |
+
+## 3a. P7 Helical build (as of 5 Nov)
+
+Qiaoye builds the Helical pages by hand in the browser; the agent guides from screenshots. Claude in Chrome never reached the ShopBack Claude Code session, so the agent cannot click for Qiaoye. Reports can't be generated either: Helical 7.0 stores them across many tables in its own Postgres, and writing those directly risks corrupting it.
+
+- **Helical:** `https://localhost/hi-ee`, `hiadmin` / `hiadmin`, installed in `~/helical/helicalinsight-7.0.0-docker/` (AGENT_CONTEXT §10.20).
+- **Done:** data source `aml_bq2_snapshot` (DuckDB, URL `jdbc:duckdb:/snapshot/aml.duckdb;access_mode=READ_ONLY`); metadata `aml_bq2` with all 20 snapshot tables, no joins.
+
+**Reports (trimmed plan, agreed 5 Nov):**
+
+| # | Page | Report | Table | Visual | Status |
+|---|---|---|---|---|---|
+| 01 | Monitor | Check results by day | `monitor_slices` | Table (slice, weekday, quarantined, recon, quality, drift, volume), 20 rows per page | Done, saved unsorted |
+| 02 | Monitor | Transfers per day | `monitor_daily` | Bar: `day` on Columns, `transfers` on Rows | In progress |
+| 04 | Monitor | Payment format mix | `monitor_format_mix` | Stacked bar: `day`, `pct`, split by `payment_format` | To do |
+| 05 | Monitor | Check report | `monitor_reports` | Table: slice, failed_checks, summary | To do |
+| 06 | Monitor | Escalations | `monitor_escalations` | Table: slice, weekday, failed_checks, summary | To do |
+| A1–A6 | Analysis | One chart per mart | `mart_channel_lift`, `mart_currency_risk`, `mart_bank_concentration`, `mart_corridors`, `mart_amount_hour`, `mart_typology_profile` | Chart plus a one-sentence finding (Q54) | To do |
+| A7 | Analysis | Detection by scheme | `model_detection_by_scheme` | Bar | To do |
+
+- **Dropped:** 03 Alerts per day (the check report already lists the top alerts, and it keeps BQ2 apart from BQ1's alert story); feature importance unless a slide needs it.
+- **Then:** two dashboards (monitor page, analysis page) in the Dashboard Designer. The layout and looks are done there; the report editor always looks plain.
+
+**Helical 7.0 tips (learned 5 Nov):**
+
+- Adding tables to metadata: tick them, then drag or right-click the table *name* (not the tick box) into the middle panel.
+- Charts need a dimension on **Columns** and a measure on **Rows** ("at least 1 dimension and 1 measure is required"). Dragging a number adds `sum_<column>`, sometimes twice (`sum_<column>_1`); remove the duplicate.
+- Pick the visual in the right-hand Visualization panel; grids are under its Table section. Set a grid's page size to 20 to show all 11 slices.
+- Sorting: the ÷ icon on a pill does not open a sort menu. Still to try: right-click the pill, or the ··· next to Visualization.
 
 ## 4. Open questions for Qiaoye
 
