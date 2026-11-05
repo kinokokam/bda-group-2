@@ -86,6 +86,24 @@ Qiaoye builds the Helical pages by hand in the browser; the agent guides from sc
 - Pick the visual in the right-hand Visualization panel; grids are under its Table section. Set a grid's page size to 20 to show all 11 slices.
 - Sorting: the ÷ icon on a pill does not open a sort menu. Still to try: right-click the pill, or the ··· next to Visualization.
 
+## 3b. P7 Helical: where the builder and designer agents stopped (late 5 Nov)
+
+Claude in Chrome did reach this laptop's Claude Code session on 5 Nov (`switch_browser`, the Chrome window named "kinokokam"), so agents can click in Helical. It dropped mid-design; see "Open problem" below. Helical folder: `aml_bq2`.
+
+**Builder: done.** All 12 reports (01, 02, 04, 05, 06, A1–A7) and two dashboards, `BQ2_Monitor.efwdd` and `BQ2_Analysis.efwdd`, are saved. Backups "BQ2 Monitor (pre-design)" and "BQ2 Analysis (pre-design)" are the plain versions. Every chart was checked against `bq2/out/snapshot/aml.duckdb`. A4 is a table (bank routes only: every laundering transfer stays in one currency). A6 charts median hours only. Findings in the A1–A7 titles, all measured: ACH 3,828 of 4,522 laundering transfers (85%) at 7.2x lift; Saudi Riyal 0.34%, 3.8x lift; top 95 of 30,528 sending banks send half; top 20 bank routes carry 4.6%; USD 10k–50k at 11:00 peaks at 0.54% (6.0x); RANDOM 14.6 h vs GATHER-SCATTER 75.3 h; relay features lift BIPARTITE 51.5% to 60.3% and STACK 58.4% to 66.5%, while FAN-IN falls 73.6% to 70.3%.
+
+**Designer: partly done** (target: the green Donezo-style scheme from Qiaoye's reference image, not its name or content).
+- Monitor dashboard: Dashboard Settings → ··· → Advance → CSS and JS (Enable on), plus an HTML widget as a dark-green header card; Escalations panel made taller. Copies of the exact CSS, JS and header HTML are in `helical/dashboard-theme/`.
+- Report 02: green gradient on the bars. Report 04: one green or grey colour per payment format.
+- **Not done:** the Analysis dashboard (paste the same CSS and JS, add its own header card, save); A1–A7 title size and colours (shorten or shrink the long titles on A3, A6, A7; green gradient for single-measure bars; per-category colours where there is a split); A2's clipped y-axis; `sum_` headers on 05 and A4. An unsaved edit on A1 was lost.
+- Limits found: charts are drawn on canvas, so CSS can't recolour them; custom colour palettes don't apply (use Color → Gradient or Field Value); no rounded bars or hatched fills.
+
+**Open problem (5 Nov, late).** Qiaoye saw the styled Monitor dashboard disappear. The Helical database shows `BQ2_Monitor` last saved at 15:23 UTC (23:23 SGT), earlier than the header-card file the designer made at 23:42, so the final save may not have happened. The Chrome window also dropped, and the browser now connected shows an error page for `https://localhost/hi-ee` although Helical answers 200 from the shell. Check first which browser and which dashboard file Qiaoye is looking at; if the styling is really gone, re-apply it from `helical/dashboard-theme/`.
+
+**Bedrock chat (P7b): patch prepared, not applied.** `helical/instantbi-bedrock/` (`apply.py`, a `BedrockFactory`, a token-usage factory, a compose add-on): Claude Haiku 4.5 in `us-east-1`, signing in through the `aml-bq2` profile folder only (no key stored), Python 3.11 container. A real Bedrock call with that profile worked. Apply it only after the blind review, because it restarts the Instant BI container.
+
+**Next:** finish the design, run the blind review of both dashboards, then apply the Bedrock patch and test asking the chat for a dashboard.
+
 ## 4. Open questions for Qiaoye
 
 1. When to tell Neeharika and the team that Helical replaces the planned dashboard.
@@ -106,3 +124,11 @@ Qiaoye builds the Helical pages by hand in the browser; the agent guides from sc
 - **No data in git.** Clear notebook outputs before committing.
 - **No paid AWS resources** (EC2, Glue, SageMaker, MWAA) without asking.
 - **Numbers:** quote only measured numbers and say where each came from.
+
+## Bedrock chat (P7b): applied, 6 Nov
+
+- **Applied** with `python helical/instantbi-bedrock/apply.py`, then `docker compose up -d --force-recreate --no-deps instantbi` in `~/helical/helicalinsight-7.0.0-docker/`. Only the Instant BI container was recreated (`hiee`, nginx and Postgres untouched). The container is now `python:3.11-slim`, provider `bedrock`, model `global.anthropic.claude-haiku-4-5-20251001-v1:0`, region `us-east-1`, signing in through the read-only mount of `~/.aws-aml-bq2-home/.aws` with `AWS_PROFILE=aml-bq2`. No key is stored in any config. Each edited Helical file has a `.pre-bedrock` backup next to it.
+- **Two bugs fixed in the patch:** (1) the unpinned requirements now pull a `langchain-community` that no longer has `ChatOllama`, so the whole app crashed at import; `apply.py` now imports it lazily in `OllamaFactory.py`. (2) `BedrockTokenUsageFactory` now overrides `from_ai_message` so `model_name` is filled in (it was `None`). The compose add-on also carries a valid healthcheck: Helical's own one has an unterminated quote and always showed `unhealthy`.
+- **Measured:** a Converse call with `--profile aml-bq2` from the shell works (13 in / 4 out tokens). Inside the container, `/interactive` (called through Flask's test client with a hand-built model of `mart_channel_lift` and `monitor_daily`, because Helical has no Instant BI model yet) returned sensible DuckDB SQL: "Which payment format has the highest laundering rate?" gave `SUM(laundering_txns)/SUM(txns)` grouped by `payment_format`, ordered descending (4,399 in / 381 out tokens, 6.0 s LLM time); "Build a dashboard of transfers per day" gave `SELECT day, transfers FROM monitor_daily` (4,204 / 246, 5.4 s). Token usage is recorded with the model name.
+- **Not yet tested:** the Helical UI path. Query execution, charts and the usage audit row need a real Instant BI model over the `aml_bq2` connection in Helical, which does not exist yet (the test stubbed the model fetch, so the execution step failed as expected). Next: create the model in the UI, open the chat and ask the two questions above.
+- Rerun `apply.py` after any Helical upgrade; it is idempotent.

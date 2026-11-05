@@ -1,0 +1,23 @@
+# Bedrock add-on for Helical's Instant BI (AI chat). Merge into the
+# docker-compose.override.yml next to Helical's compose (apply.sh does it).
+# - python:3.11-slim because current langchain-aws needs Python 3.10+.
+# - Mounts only the aml-bq2 AWS profile folder, never all of ~/.aws.
+# - Bedrock is called in us-east-1 (ap-southeast-1 returns
+#   ServiceUnavailableException for the global. profile; AGENT_CONTEXT §10.14).
+services:
+  instantbi:
+    image: python:3.11-slim
+    environment:
+      AWS_PROFILE: aml-bq2
+      AWS_CONFIG_FILE: /aws/config
+      AWS_SHARED_CREDENTIALS_FILE: /aws/credentials
+      BEDROCK_REGION: us-east-1
+    volumes:
+      - ${AML_AWS_DIR:-../../.aws-aml-bq2-home/.aws}:/aws:ro
+    # Helical's own healthcheck has an unterminated quote (always "unhealthy"); this one is valid.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
