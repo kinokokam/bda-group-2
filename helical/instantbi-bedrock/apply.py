@@ -121,6 +121,17 @@ def ollama_lazy(s: str) -> str:
 
 edit(pkg / "integration" / "ollama" / "OllamaFactory.py", ollama_lazy)
 
+# 6c. Usage audit: the request carries the browser's base URL (https://localhost/hi-ee),
+# which the container cannot reach, so the audit POST failed with ConnectionError.
+# Prefer the configured in-network base URL (http://hiee:8080/hi-ee).
+def audit_base(s: str) -> str:
+    return s.replace(
+        'resolved_base_url = (base_url or configured_base_url or "").strip()',
+        'resolved_base_url = (configured_base_url or base_url or "").strip()  # in-network URL first',
+    )
+
+edit(pkg / "audit" / "llm_usage_audit.py", audit_base)
+
 # 7. compose override: merge the instantbi service in
 ov = helical / "docker-compose.override.yml"
 add = (HERE / "docker-compose.instantbi.yml").read_text()
