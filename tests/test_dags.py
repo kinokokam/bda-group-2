@@ -44,7 +44,7 @@ def test_the_monitor_checks_once_then_accepts_or_quarantines(bag):
     assert downstream(bag.dags["aml_bq2_demo"]) == {
         "run_checks": ["gate"], "gate": ["accept_day", "quarantine"],
         "accept_day": ["report_slice"], "quarantine": ["report_slice"],
-        "report_slice": ["send_escalation"], "send_escalation": ["upload_results"], "upload_results": []}
+        "report_slice": ["send_escalation"], "send_escalation": ["upload_results"], "upload_results": ["sync_snapshot"], "sync_snapshot": []}
 
 
 def test_the_batch_runs_by_hand_from_schemes_to_marts(bag):

@@ -13,7 +13,7 @@ x-airflow-common:
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'false'
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-boto3 awscli pyarrow pandas scikit-learn matplotlib kaggle xgboost}
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-boto3 awscli pyarrow pandas scikit-learn matplotlib kaggle xgboost duckdb==1.5.6}
     PYTHONPATH: /opt/airflow:/opt/airflow/dags
     # BQ2 monitor: its FX table is a copy of s3://aml-bq2/reference/fx/fx_rates.csv in bq2/out/
     AML_FX_RATES: /opt/airflow/out/fx_rates.csv
