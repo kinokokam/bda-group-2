@@ -85,7 +85,7 @@ def redact(text):
     text = re.sub(r"arn:aws[^\s'\"]*", "arn:aws:…redacted…", text)
     text = re.sub(r"\b(AKIA|ASIA)[A-Z0-9]{16}\b", "AKIA…redacted…", text)
     # key/value in env, JSON ("Key": "value") or CLI-table (| Key | value |) layouts, quoted or not
-    text = re.sub(r'(?i)("?[\w-]*(?:secret|token|password|passwd|credential|apikey|api_key|private)[\w-]*"?\s*[:=|]\s*)("[^"]*"|\S+)',
+    text = re.sub(r'(?i)("?[\w-]*(?:secret|token|password|passwd|credential|key|private)[\w-]*"?\s*[:=|]\s*)("[^"]*"|\S+)',
                   r"\1…redacted…", text)
     # Lambda/ECS environment blocks are never rendered, whatever --query was used
     text = re.sub(r'"Environment"\s*:\s*\{.*?\n\s*\}', '"Environment": {…redacted…}', text, flags=re.S)
