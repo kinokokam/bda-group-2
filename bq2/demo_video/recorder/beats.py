@@ -134,3 +134,49 @@ CHAT = [
 TAKES["chat"] = CHAT
 
 TAKES["vsctest"] = [SETUP[[b["label"] for b in SETUP].index("S9_MOUNTS")]]
+
+# ── Three short deck videos (8 Nov): v1 batch analysis, v2 daily monitor, v3 AI chat ──
+SC = "main.report-viwer-content"          # the report viewer's scrolling pane
+V1S, V2S, V3S = "Batch analysis", "Daily monitor", "AI chat"
+TAKES["v1"] = [
+    page("V1_CARD", "card_v1", "", "", 4),
+    {"label": "V1_DAG", "nav": f"{AF}/dags/aml_bq2_batch/grid?dag_run_id={BATCH}&tab=graph", "ready": NODES("mart_typology_profile"), "ready_timeout": 20, "settle": 2,
+     "step": V1S, "cap": "Batch DAG aml_bq2_batch: a Lambda parses the 370 scheme blocks, Athena builds the curated table, then six marts in parallel. All 8 tasks green.", "hold": 9},
+    {"label": "V1_AUDIT", "nav": f"{AF}/dags/aml_bq2_batch/grid?dag_run_id={BATCH}&task_id=curated_transactions&tab=logs",
+     "ready": NODES("Returned value"), "ready_timeout": 30, "settle": 1.5,
+     "step": V1S, "cap": "Every table is rebuilt in staging and audited (5,078,336 rows) before it replaces the live one.", "hold": 7},
+    {"label": "V1_ANALYSIS", "nav": HI + "BQ2_Analysis.efwdd", "ready": CANV(4), "settle": 5,
+     "step": V1S, "cap": "Results in Helical: the Analysis page, one chart per mart, each titled with its finding.", "hold": 1,
+     "acts": [("sleep", 4),
+              ("scroll", SC, 280, 2200), ("cap", V1S, "Channel: ACH carries 85% of laundering (3,828 of 4,522), a 7.2x lift. Currency: Saudi Riyal 3.8x; no other currency is above 1.2x."), ("sleep", 9),
+              ("scroll", SC, 720, 2200), ("cap", V1S, "Banks: the top 95 sending banks send half of laundering, but also 35% of all transfers, so only a 1.4x lift. The top 20 routes carry just 4.6%."), ("sleep", 9),
+              ("scroll", SC, 1160, 2200), ("cap", V1S, "Amount and time: USD 10k-50k is the riskiest band, peaking at 0.54% at 11:00 (6.0x). Schemes differ in speed: random 14.6 h, gather-scatter 75.3 h."), ("sleep", 9),
+              ("scroll", SC, "end", 2200), ("cap", V1S, "Detection by scheme: following the money one hop further (model B) lifts the multi-hop schemes most: bipartite +8.8, gather-scatter +8.3, stack +8.1, cycle +7.6 points."), ("sleep", 9)]},
+]
+TAKES["v2"] = [
+    page("V2_CARD", "card_v2", "", "", 4),
+    {"label": "V2_GRID", "nav": f"{AF}/dags/aml_bq2_demo/grid", "ready": NODES("Total success"), "ready_timeout": 30, "settle": 1.5,
+     "step": V2S, "cap": "Monitor DAG aml_bq2_demo runs once per replayed day: four checks, a gate, then accept or quarantine. 1 to 11 Sep: 11 runs, all green.", "hold": 9},
+    {"label": "V2_SEP1", "nav": f"{AF}/dags/aml_bq2_demo/grid?dag_run_id={RUN1}&tab=graph", "ready": NODES("sync_snapshot"), "ready_timeout": 20, "settle": 2,
+     "step": V2S, "cap": "1 Sep: drift and volume fail, so the gate sends the day to quarantine and escalates it.", "hold": 8},
+    {"label": "V2_SEP5", "nav": f"{AF}/dags/aml_bq2_demo/grid?dag_run_id={RUN5}&tab=graph", "ready": NODES("sync_snapshot"), "ready_timeout": 20, "settle": 2,
+     "step": V2S, "cap": "5 Sep: all four checks pass, so the day is accepted. The last task syncs the snapshot that Helical reads.", "hold": 8},
+    {"label": "V2_MONITOR", "nav": HI + "BQ2_Monitor.efwdd", "ready": CANV(2), "settle": 5,
+     "step": V2S, "cap": "The Monitor page: 11 days checked, 8 passed, 3 quarantined (1, 2 and 11 Sep).", "hold": 1,
+     "acts": [("sleep", 7),
+              ("scroll", SC, 300, 2200), ("cap", V2S, "Check results by day: recon, quality, drift and volume. The daily charts use accepted days only."), ("sleep", 9),
+              ("scroll", SC, 960, 2200), ("cap", V2S, "The check report: code writes the facts for each day (no AI, no verdict); the risk team decides."), ("sleep", 9),
+              ("scroll", SC, 1860, 2200), ("cap", V2S, "Escalations: every quarantined day is escalated with its failed checks; the risk team decides what to do."), ("sleep", 7)]},
+]
+CTRL_Q = ("What percent of all laundering is caught by reviewing ACH transfers of USD 10k-50k, and what percent of all transfers does that rule review?",
+          "ACH + USD 10k-50k catches 29.2% of all laundering while reviewing only 1.1% of transfers (a 26.7x lift). Matches the control-rules table.")
+_v3 = [dict(b, step=V3S) for b in CHAT[:2]]
+_v3[1] = dict(_v3[1], cap="Connect the semantic model AML BQ2 analysis: the marts, the model results and the control rules.", acts=[a if not (a[0] == "cap") else ("cap", V3S, a[2]) for a in _v3[1]["acts"]])
+def _ask(i, q, verdict):
+    b = ask(i, q, verdict); b["step"] = V3S
+    b["acts"] = [a if a[0] != "cap" else ("cap", V3S, a[2]) for a in b["acts"]]
+    return b
+TAKES["v3"] = [page("V3_CARD", "card_v3", "", "", 4)] + _v3 + [
+    _ask(1, "Which payment format has the highest laundering rate?",
+         "ACH: 3,828 laundering transfers out of 599,685 (0.64%). Checked against the snapshot: correct."),
+    _ask(2, *CTRL_Q)]
