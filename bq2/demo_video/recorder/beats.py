@@ -171,6 +171,7 @@ TAKES["v2"] = [
 CTRL_Q = ("What percent of all laundering is caught by reviewing ACH transfers of USD 10k-50k, and what percent of all transfers does that rule review?",
           "ACH + USD 10k-50k catches 29.2% of all laundering while reviewing only 1.1% of transfers (a 26.7x lift). Matches the control-rules table.")
 _v3 = [dict(b, step=V3S) for b in CHAT[:2]]
+_v3[0] = dict(_v3[0], cap="Helical Instant BI: natural-language questions become SQL through a semantic layer; Claude Haiku 4.5 on Bedrock writes the query.")
 _v3[1] = dict(_v3[1], cap="Connect the semantic model AML BQ2 analysis: the marts, the model results and the control rules.", acts=[a if not (a[0] == "cap") else ("cap", V3S, a[2]) for a in _v3[1]["acts"]])
 def _ask(i, q, verdict):
     b = ask(i, q, verdict); b["step"] = V3S
