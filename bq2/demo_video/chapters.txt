@@ -1,0 +1,23 @@
+00:00 Part 1: set up
+00:19 Setup 2 of 11: The codebase
+00:29 Setup 2 of 11: One SQL file per mart; the DAG runs them in Athena
+00:40 Setup 3 of 11: Install
+00:57 Setup 4 of 11: The DAGs read the bucket name from AML_BUCKET (default aml-bq2)
+01:13 Setup 5 of 11: Ingest
+01:29 Setup 6 of 11: Athena tables
+01:51 Setup 7 of 11: Deployed to AWS Lambda
+02:10 Setup 9 of 11: Add BQ2 to Airflow
+02:22 Setup 9 of 11: One command starts Airflow 2.8
+02:36 Setup 10 of 11: Helical reads a DuckDB snapshot synced from S3
+02:54 Part 2: run the pipeline
+03:12 Run 1 of 4: The run
+03:32 Run 1 of 4: Result
+03:50 Run 3 of 4: Monitor DAG aml_bq2_demo, once per day
+04:10 Run 3 of 4: 1 Sep
+04:28 Run 3 of 4: The check report
+04:38 Run 3 of 4: Every quarantined day is written to the escalation log
+05:04 Run 4 of 4: Analysis
+05:23 Run 4 of 4: Instant BI
+05:52 Run 4 of 4: Question 1
+06:27 Run 4 of 4: Question 2
+07:04 Recap

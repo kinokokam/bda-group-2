@@ -42,10 +42,18 @@ def staging_sql(table: Table, bucket: str) -> str:
     return sql.replace(f"s3://{PLACEHOLDER}/{table.prefix}", f"s3://{bucket}/staging/{table.prefix}")
 
 
-def _same(a, b) -> bool:
+# median_* columns come from approx_percentile, which is not exact: a rerun shifts them a little.
+APPROX_PREFIX, APPROX_TOL = "median_", 0.01
+
+
+def _same(a, b, rel_tol: float = 1e-9) -> bool:
     if a in (None, "") or b in (None, ""):
         return a == b
-    return math.isclose(float(a), float(b), rel_tol=1e-9, abs_tol=1e-6)
+    return math.isclose(float(a), float(b), rel_tol=rel_tol, abs_tol=1e-6)
+
+
+def _tol(column: str) -> float:
+    return APPROX_TOL if column.startswith(APPROX_PREFIX) else 1e-9
 
 
 def fingerprint(athena, name: str, live: str) -> dict:
@@ -60,7 +68,7 @@ def fingerprint(athena, name: str, live: str) -> dict:
 def audit(table: Table, athena) -> None:
     staging = f"{table.name}_staging"
     new, old = fingerprint(athena, staging, table.name), fingerprint(athena, table.name, table.name)
-    wrong = [k for k in old if not _same(new.get(k), old[k])]
+    wrong = [k for k in old if not _same(new.get(k), old[k], _tol(k))]
     if wrong:
         raise AuditFailed(f"{table.name}: staging differs from live in " +
                           ", ".join(f"{k} ({new.get(k)} vs {old[k]})" for k in wrong))

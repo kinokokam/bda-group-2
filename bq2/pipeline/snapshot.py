@@ -23,7 +23,8 @@ import pandas as pd
 SNAPSHOT_PATH = Path(__file__).resolve().parents[1] / "out" / "snapshot" / "aml.duckdb"
 STORAGE_VERSION = "v1.5.0"
 CHECKS = ["recon", "quality", "drift", "volume"]
-MARTS = {"channel_lift", "currency_risk", "bank_concentration", "corridors", "amount_hour", "typology_profile"}
+MARTS = {"channel_lift", "currency_risk", "bank_concentration", "corridors", "amount_hour", "typology_profile",
+         "control_rules"}   # control_rules: analysis table for slide 29 and the AI chat, not built by the batch DAG
 MODEL_TABLE = re.compile(r"[a-z0-9_]{1,40}")     # table names come from S3 keys: only plain ones pass
 
 
