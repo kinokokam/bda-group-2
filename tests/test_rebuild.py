@@ -105,3 +105,22 @@ def test_a_partitioned_table_rereads_its_partitions_after_publishing():
     rebuild_table(table, athena, s3, "aml-bq2", "2026-11-03")
     assert s3.keys("curated/") == ["curated/transactions/txn_date=2022-09-01/new.parquet"]
     assert "MSCK REPAIR TABLE aml_bq2.curated_transactions" in athena.sql
+
+
+def test_approximate_medians_may_drift_slightly_between_rebuilds():
+    """median_* columns come from approx_percentile, which is not exact: a rerun shifts them a little."""
+    live = {"n_rows": "7", "n": "5078336", "median_laundering_usd": "11865.66770852575"}
+    s3 = FakeS3({"marts/channel_lift/old-1.parquet"})
+    athena = FakeAthena(s3, {"mart_channel_lift": live, "mart_channel_lift_staging":
+                             {**live, "median_laundering_usd": "11802.362952692969"}})
+    rebuild_table(LIFT, athena, s3, "aml-bq2", "2026-11-03")
+    assert s3.keys("marts/") == ["marts/channel_lift/part-1.parquet"]
+
+
+def test_a_median_that_moves_more_than_one_percent_still_fails_the_audit():
+    live = {"n_rows": "7", "n": "5078336", "median_laundering_usd": "11865.0"}
+    s3 = FakeS3({"marts/channel_lift/old-1.parquet"})
+    athena = FakeAthena(s3, {"mart_channel_lift": live, "mart_channel_lift_staging":
+                             {**live, "median_laundering_usd": "12500.0"}})
+    with pytest.raises(AuditFailed, match="median_laundering_usd"):
+        rebuild_table(LIFT, athena, s3, "aml-bq2", "2026-11-03")
