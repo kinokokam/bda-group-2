@@ -253,7 +253,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id="aml_end_to_end_pipeline",
+    dag_id="aml_bq1_train",
     default_args=default_args,
     description="End-to-end Medallion AML Pipeline: Ingestion -> Spark ETL -> XGBoost Training & Evaluation",
     schedule_interval=None,
