@@ -1,0 +1,50 @@
+/* The BQ2 Helical look (helical/dashboard-theme/bq2_theme.css and the header
+   HTML beside it), for what .streamlit/config.toml cannot set: the cream page,
+   the green header band with KPI cards straddling its edge, and white cards.
+   Values are copied from the BQ2 files so both dashboards match. */
+
+/* Cream page; the theme's own background stays white for cards, tables and charts. */
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] { background-color: #FAF6E9; }
+[data-testid="stHeader"] { background: transparent; }
+[data-testid="stCaptionContainer"] { color: #6F8A83; }
+
+/* Header band. The noise texture is BQ2's SVG with its angle brackets
+   percent-encoded: Streamlit's HTML sanitiser drops this whole stylesheet if
+   its text has a raw opening angle bracket before a letter, even in a comment. */
+.bq1-hero { position: relative; padding: 26px 30px 0 30px; color: #FFFFFF; display: flex; flex-direction: column; gap: 22px; }
+.bq1-hero::before { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 58px; border-radius: 24px; z-index: 0;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"), linear-gradient(180deg, #14574A 0%, #124F43 100%); }
+.bq1-hero > * { position: relative; z-index: 1; }
+.bq1-hero__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.bq1-hero__eyebrow { font-size: 14px; opacity: 0.8; }
+.bq1-hero__title { font-size: 34px; font-weight: 600; letter-spacing: -0.5px; line-height: 1.15; }
+.bq1-hero__subtitle { font-size: 13px; opacity: 0.75; margin-top: 4px; }
+.bq1-hero__badge { background: #FFFFFF; color: #14574A; border-radius: 999px; padding: 10px 22px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+
+/* KPI cards over the band's lower edge */
+.bq1-kpis { display: flex; gap: 16px; }
+.bq1-kpi { flex: 1; min-width: 0; background: #FFFFFF; border-radius: 20px; padding: 16px 18px; color: #0F2F29;
+  box-shadow: 0 0 0 1px #EFE9D2, 0 8px 20px rgba(20, 87, 74, 0.12); container-type: inline-size; }
+.bq1-kpi__head { display: flex; justify-content: space-between; align-items: center; }
+.bq1-kpi__icon { width: 34px; height: 34px; border-radius: 10px; background: #DCEBE5; color: #14574A; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 16px; font-weight: 700; }
+.bq1-kpi__help { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #DCEBE5; color: #14574A; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 13px; font-weight: 600; cursor: help; }
+.bq1-kpi__row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+/* The value shrinks to fit its card: 100cqi is the card's inner width, and
+   --units (set by theme.py) is the value's length in digit widths. A digit is
+   about 0.62em in this font, so this is the largest size that fits, kept
+   between 16px and the BQ2 size of 32px. */
+.bq1-kpi__value { font-size: clamp(16px, calc(100cqi / (var(--units, 4) * 0.64)), 32px); font-weight: 600; line-height: 1;
+  white-space: nowrap; }
+.bq1-kpi__label { font-size: 13.5px; color: #4D6560; margin-top: 4px; }
+.bq1-pill { background: #14574A; color: #FFFFFF; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.bq1-pill--amber { background: #F6C64B; color: #4A3600; }
+.bq1-pill--red { background: #FCE6E6; color: #C93B3B; }
+@media (max-width: 1100px) { .bq1-kpis { flex-wrap: wrap; } .bq1-kpi { flex: 1 1 40%; } }
+
+/* White cards: st.container(key="card-...") */
+[class*="st-key-card-"] { background: #FFFFFF; border-radius: 20px; padding: 20px 22px 16px 22px;
+  box-shadow: 0 0 0 1px #EFE9D2, 0 6px 18px rgba(20, 87, 74, 0.07); }
+[class*="st-key-card-"] h3 { font-size: 17px; font-weight: 500; color: #0F2F29; padding-top: 0; }
+[class*="st-key-card-"] [data-testid="stMetricLabel"] { color: #4D6560; }

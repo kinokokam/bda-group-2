@@ -116,5 +116,16 @@ variable "dashboard_zip_key" {
 variable "dashboard_packages" {
   description = "Pinned to the versions in uv.lock, so EC2 runs what was tested locally."
   type        = string
-  default     = "streamlit==1.66.0 boto3==1.43.116 pandas==3.0.6"
+  default     = "streamlit==1.66.0 boto3==1.43.116 pandas==3.0.6 kafka-python==3.0.11 aws-msk-iam-sasl-signer-python==1.0.2 anthropic[bedrock]==1.17.0"
+}
+
+variable "brief_model" {
+  description = <<-EOT
+    Bedrock inference profile for the dashboard's investigator brief. Claude
+    Haiku 4.5 is the model this account has a Marketplace agreement for; a
+    `global.` profile is expected, since the IAM policy derives the
+    foundation-model ARN by removing that prefix.
+  EOT
+  type        = string
+  default     = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
 }

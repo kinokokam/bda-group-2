@@ -1,5 +1,7 @@
 # Streamlit analyst dashboard on one EC2 instance, reading the gold table
-# through Athena with a read-only instance role (no keys on the box).
+# through Athena and the alerts topics from MSK's private brokers, with a
+# read-only instance role (no keys on the box). The brokers allow 9098 from
+# the VPC, which this instance is in.
 #
 # Exists only when dashboard_allowed_cidr is set in terraform.tfvars, so a
 # teammate's provision without it neither fails nor opens the port to anyone.
@@ -116,6 +118,55 @@ resource "aws_iam_role_policy" "dashboard_read" {
   })
 }
 
+# Live alerts: read the alerts-<run_id> topics, and find the brokers by
+# cluster name. No consumer group, so no group permissions.
+resource "aws_iam_role_policy" "dashboard_alerts" {
+  count = local.deploy_dashboard ? 1 : 0
+  name  = "read-alerts"
+  role  = aws_iam_role.dashboard[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["kafka-cluster:Connect", "kafka-cluster:DescribeCluster"]
+        Resource = local.kafka_cluster
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kafka-cluster:DescribeTopic", "kafka-cluster:ReadData"]
+        Resource = "${local.kafka_topic_arn}/alerts-*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kafka:ListClustersV2", "kafka:GetBootstrapBrokers"]
+        Resource = "*"
+      },
+    ]
+  })
+}
+
+# Investigator brief: Claude Haiku 4.5 on Bedrock, through the global inference
+# profile, which may serve a request from any region's copy of the model.
+resource "aws_iam_role_policy" "dashboard_bedrock" {
+  count = local.deploy_dashboard ? 1 : 0
+  name  = "invoke-brief-model"
+  role  = aws_iam_role.dashboard[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["bedrock:InvokeModel"]
+        Resource = [
+          "arn:aws:bedrock:*:${local.account}:inference-profile/${var.brief_model}",
+          "arn:aws:bedrock:*::foundation-model/${replace(var.brief_model, "global.", "")}",
+        ]
+      },
+    ]
+  })
+}
+
 resource "aws_iam_role_policy_attachment" "dashboard_ssm" {
   count      = local.deploy_dashboard ? 1 : 0
   role       = aws_iam_role.dashboard[0].name
@@ -170,6 +221,9 @@ resource "aws_instance" "dashboard" {
     Environment=ATHENA_WORKGROUP=${aws_athena_workgroup.main.name}
     Environment=GLUE_DATABASE=${local.glue_database}
     Environment=BQ1_BUCKET=${var.bucket}
+    Environment=MSK_CLUSTER=${var.prefix}
+    Environment=BEDROCK_REGION=${var.region}
+    Environment=BEDROCK_MODEL=${var.brief_model}
     ExecStart=/opt/dashboard/venv/bin/streamlit run app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false
     Restart=on-failure
 
@@ -193,6 +247,8 @@ resource "aws_instance" "dashboard" {
   # them and boot a box that cannot read the package or query Athena.
   depends_on = [
     aws_iam_role_policy.dashboard_read,
+    aws_iam_role_policy.dashboard_alerts,
+    aws_iam_role_policy.dashboard_bedrock,
     aws_iam_role_policy_attachment.dashboard_ssm,
   ]
 
