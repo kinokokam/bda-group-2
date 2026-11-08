@@ -11,6 +11,7 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 
+import ai
 import athena
 import live
 import queries
@@ -18,6 +19,7 @@ import queries
 LIVE_TTL_SECONDS = 10
 RUNS_TTL_SECONDS = 30
 MODEL_TTL_SECONDS = 3600
+BRIEF_TTL_SECONDS = 3600
 
 # Minute buckets for a two-hour feed, hour buckets for the 2.5-day history.
 MINUTE_WIDTH = 16
@@ -104,6 +106,17 @@ def evaluation(run_id: str, by_hour: bool) -> dict[str, pd.DataFrame]:
             "activity": (queries.EVALUATION_ACTIVITY.format(width=width), [run_id]),
         }
     )
+
+
+@st.cache_data(ttl=BRIEF_TTL_SECONDS, show_spinner=False)
+def alert_brief(run_id: str, txn_id: str, prompt: str) -> str:
+    """Return the investigator brief for one alert, asking the model once per prompt.
+
+    Keyed on the prompt too, so the brief is rewritten if the accounts' history
+    has grown since; a rerun, a page switch or another analyst reuses it.
+    Failures are not cached, so the next click tries again.
+    """
+    return ai.explain(prompt)
 
 
 @st.cache_data(ttl=MODEL_TTL_SECONDS, show_spinner=False)

@@ -146,6 +146,27 @@ resource "aws_iam_role_policy" "dashboard_alerts" {
   })
 }
 
+# Investigator brief: Claude Haiku 4.5 on Bedrock, through the global inference
+# profile, which may serve a request from any region's copy of the model.
+resource "aws_iam_role_policy" "dashboard_bedrock" {
+  count = local.deploy_dashboard ? 1 : 0
+  name  = "invoke-brief-model"
+  role  = aws_iam_role.dashboard[0].id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = ["bedrock:InvokeModel"]
+        Resource = [
+          "arn:aws:bedrock:*:${local.account}:inference-profile/${var.brief_model}",
+          "arn:aws:bedrock:*::foundation-model/${replace(var.brief_model, "global.", "")}",
+        ]
+      },
+    ]
+  })
+}
+
 resource "aws_iam_role_policy_attachment" "dashboard_ssm" {
   count      = local.deploy_dashboard ? 1 : 0
   role       = aws_iam_role.dashboard[0].name
@@ -201,6 +222,8 @@ resource "aws_instance" "dashboard" {
     Environment=GLUE_DATABASE=${local.glue_database}
     Environment=BQ1_BUCKET=${var.bucket}
     Environment=MSK_CLUSTER=${var.prefix}
+    Environment=BEDROCK_REGION=${var.region}
+    Environment=BEDROCK_MODEL=${var.brief_model}
     ExecStart=/opt/dashboard/venv/bin/streamlit run app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --browser.gatherUsageStats false
     Restart=on-failure
 
@@ -225,6 +248,7 @@ resource "aws_instance" "dashboard" {
   depends_on = [
     aws_iam_role_policy.dashboard_read,
     aws_iam_role_policy.dashboard_alerts,
+    aws_iam_role_policy.dashboard_bedrock,
     aws_iam_role_policy_attachment.dashboard_ssm,
   ]
 

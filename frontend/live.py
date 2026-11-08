@@ -195,7 +195,8 @@ class AlertStore:
         frame = pd.DataFrame(rows, columns=list(queries.ALERT_QUEUE_COLUMNS))
         frame["score"] = pd.to_numeric(frame["score"]).astype("float64")
         frame["amount_paid_usd"] = pd.to_numeric(frame["amount_paid_usd"]).astype("float64")
-        return frame.sort_values(["score", "event_time"], ascending=[False, True], kind="stable").reset_index(drop=True)
+        return frame.sort_values(["score", "event_time", "txn_id"], ascending=[False, True, True],
+                                 kind="stable").reset_index(drop=True)
 
 
 class Hub(threading.Thread):

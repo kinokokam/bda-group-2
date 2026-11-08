@@ -24,6 +24,34 @@ is really the amount in that currency. The dashboard undoes the job's rate for
 display and adds no amounts up, since a total would mix currencies. (It showed
 a "value under alert" total of the converted currencies only until 8 Nov.)
 
+## Investigator brief (AI)
+
+On the alert queue, **Explain this alert** asks Claude Haiku 4.5 on Amazon
+Bedrock (`ai.py`) for a short brief: why the alert scored high, what the two
+accounts' histories show, and what to check next. It never says whether the
+transfer is laundering.
+
+- **What is sent:** only what the page shows: the alert, its five factors (with
+  notes on what each number means) and each account's 25 most recent transfers,
+  oldest first, each placed against the alert. Counts (24 hours before, after,
+  by day) are computed in code and given to the model, which got them wrong when
+  it counted itself. The outcome label is never sent; a test checks.
+- **Accuracy:** checked against the data on 8 Nov. After those fixes about half
+  the briefs were exact and the rest had one small slip each (a date range or a
+  repeat count off by one). The page says to check it before acting.
+- **Model and region:** `BEDROCK_MODEL` (default
+  `global.anthropic.claude-haiku-4-5-20251001-v1:0`) and `BEDROCK_REGION`
+  (default `ap-southeast-1`). Haiku 4.5 is the model this account has a
+  Marketplace agreement for. The SDK stays below 2.0, whose API version Bedrock
+  accepts only for Claude 4.7 and later.
+- **Credentials:** the same as Athena: `AWS_PROFILE` on a laptop, the instance
+  role on EC2 (`infra/dashboard.tf` grants `bedrock:InvokeModel` on that model only).
+- **Cost:** about 2,000 tokens in and 400 out, under half a cent per brief.
+  It runs only on a click and is cached per alert for an hour.
+- **Turn it off:** `BQ1_AI=off`.
+- **Check with the team:** Claude on Bedrock is billed through AWS Marketplace,
+  which the BQ2 notes list as banned by the brief (BQ2's chat uses it anyway).
+
 ## Look
 
 The pages match the BQ2 Helical dashboards (`helical/dashboard-theme/`): a

@@ -5,7 +5,8 @@ ones; ranking puts them on top. Selecting one shows why it scored high and
 what both accounts have been doing.
 
 During a demo on EC2 the queue is read from the live Kafka stream; account
-history always comes from Athena.
+history always comes from Athena. On request, Claude on Bedrock writes an
+investigator brief for the selected alert (`ai.py`).
 """
 
 from datetime import datetime
@@ -13,6 +14,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
+import ai
 import data
 import metrics
 import queries
@@ -48,9 +50,13 @@ COLUMN_CONFIG = {
 }
 
 
-def show_history(account: str) -> None:
+def load_history(account: str) -> pd.DataFrame:
+    """Return an account's transfers across the history and the run, newest first, in their own currency."""
+    return metrics.add_native_amounts(data.account_history(run_id, account))
+
+
+def show_history(history: pd.DataFrame) -> None:
     """Draw an account's recent transfers with a count of its alerts."""
-    history = metrics.add_native_amounts(data.account_history(run_id, account))
     if history.empty:
         st.caption("No other transfers on record.")
         return
@@ -78,17 +84,15 @@ reload = refresh.button("Refresh", icon=":material/refresh:", width="stretch")
 if reload:
     data.alert_queue.clear()
 
-# Live, the queue is a snapshot the analyst refreshes on purpose: rows that
-# reorder under a selection would swap the alert being read for another.
+# The queue is a snapshot the analyst refreshes on purpose, from either
+# source: if the rows changed on a rerun (a button in the detail panel, after
+# the 10 s Athena cache lapsed), Streamlit would drop the selected alert.
 live_queue = data.live_alerts(run_id)
 snapshot_key = f"queue-{run_id}"
-if live_queue is None:
-    alerts = data.alert_queue(run_id)
-    loaded_at = datetime.now()
-else:
-    if reload or snapshot_key not in st.session_state:
-        st.session_state[snapshot_key] = (datetime.now(), live_queue.head(queries.ALERT_QUEUE_LIMIT))
-    loaded_at, alerts = st.session_state[snapshot_key]
+if reload or snapshot_key not in st.session_state:
+    fresh = data.alert_queue(run_id) if live_queue is None else live_queue.head(queries.ALERT_QUEUE_LIMIT)
+    st.session_state[snapshot_key] = (datetime.now(), fresh)
+loaded_at, alerts = st.session_state[snapshot_key]
 
 alerts = metrics.add_native_amounts(alerts)
 alerts["priority"] = alerts["score"].map(metrics.priority)
@@ -193,10 +197,38 @@ with reasons, theme.card("reasons"):
             width="stretch",
         )
 
+sender_history = load_history(alert["from_account"])
+receiver_history = load_history(alert["to_account"])
+
+if ai.available():
+    with theme.card("brief"):
+        st.subheader("Investigator brief")
+        brief_key = f"brief-{run_id}-{alert['txn_id']}"
+        if brief_key not in st.session_state:
+            # Cleared once the brief arrives, so the button doesn't linger under it.
+            intro = st.empty()
+            with intro.container():
+                st.caption(
+                    f"{ai.MODEL_LABEL} writes a short brief from the factors and both accounts' history on this "
+                    "page. Nothing is sent until you ask."
+                )
+                asked = st.button("Explain this alert", icon=":material/auto_awesome:", key=f"explain-{brief_key}")
+            if asked:
+                prompt = ai.brief_prompt(alert.to_dict(), contributors, sender_history, receiver_history)
+                with st.spinner(f"{ai.MODEL_LABEL} is reading the alert and both accounts' history…"):
+                    try:
+                        st.session_state[brief_key] = data.alert_brief(run_id, str(alert["txn_id"]), prompt)
+                        intro.empty()
+                    except ai.BriefUnavailable as error:
+                        st.warning(str(error), icon=":material/cloud_off:")
+        if brief_key in st.session_state:
+            st.markdown(st.session_state[brief_key])
+            st.caption(f"Written by {ai.MODEL_LABEL} from the data on this page. Check it before acting.")
+
 with theme.card("histories"):
     st.subheader("Account history")
     sender, receiver = st.tabs([f"Sender {alert['from_account']}", f"Receiver {alert['to_account']}"])
     with sender:
-        show_history(alert["from_account"])
+        show_history(sender_history)
     with receiver:
-        show_history(alert["to_account"])
+        show_history(receiver_history)

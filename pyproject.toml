@@ -20,6 +20,9 @@ bq1 = [
     "scikit-learn>=1.3.0",
     "shap>=0.44.0",
     "streamlit>=1.30.0",
+    # Investigator brief on the dashboard: Claude Haiku 4.5 on Bedrock. Kept below
+    # 2.0, whose API version Bedrock accepts only for Claude 4.7 and later.
+    "anthropic[bedrock]>=1.17,<2",
 ]
 # Batch ETL, model training, the exposure marts and the live monitor.
 bq2 = [

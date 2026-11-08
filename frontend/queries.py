@@ -109,7 +109,7 @@ ALERT_QUEUE = f"""
 SELECT {", ".join(ALERT_QUEUE_COLUMNS)}
 FROM scored
 WHERE run_id = ? AND is_alert
-ORDER BY score DESC, event_time
+ORDER BY score DESC, event_time, txn_id
 LIMIT {ALERT_QUEUE_LIMIT}
 """
 
