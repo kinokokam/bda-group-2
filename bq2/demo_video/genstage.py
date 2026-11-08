@@ -82,7 +82,7 @@ def card(name, kick, head, sub, step=None, total=None):
 def redact(text):
     """Belt and braces: captured CLI output must never carry an account id, ARN, key or token into a frame."""
     text = re.sub(r"\b\d{12}\b", "************", text)
-    text = re.sub(r"arn:aws[^\s"']*", "arn:aws:…redacted…", text)
+    text = re.sub(r"arn:aws[^\s'\"]*", "arn:aws:…redacted…", text)
     text = re.sub(r"\b(AKIA|ASIA)[A-Z0-9]{16}\b", "AKIA…redacted…", text)
     # key/value in env, JSON ("Key": "value") or CLI-table (| Key | value |) layouts, quoted or not
     text = re.sub(r'(?i)("?[\w-]*(?:secret|token|password|passwd|credential|apikey|api_key|private)[\w-]*"?\s*[:=|]\s*)("[^"]*"|\S+)',
