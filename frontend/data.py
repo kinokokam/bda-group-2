@@ -3,6 +3,7 @@
 Iceberg commits once per Flink checkpoint (every 60 s, `infra/apps.tf`), so
 rows arrive in batches; a short cache keeps a refreshing page from querying
 faster than anything can change, and every Athena query bills a 10 MB minimum.
+Live alerts from the Kafka stream (`live.py`) need no cache: they are in memory.
 """
 
 from typing import Optional
@@ -11,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 import athena
+import live
 import queries
 
 LIVE_TTL_SECONDS = 10
@@ -31,6 +33,31 @@ def period_width(by_hour: bool) -> int:
 def runs() -> pd.DataFrame:
     """Return one row per run in the gold table, newest id first."""
     return athena.query(queries.RUNS)
+
+
+def windows() -> pd.DataFrame:
+    """Return `runs` plus live feeds whose alerts topic exists but which have
+    not committed to the gold table yet, newest id first."""
+    frame = runs()
+    pending = [run_id for run_id in live.runs() if run_id not in set(frame["run_id"])]
+    if not pending:
+        return frame
+    combined = pd.concat([frame, pd.DataFrame({"run_id": pending})], ignore_index=True)
+    return combined.sort_values("run_id", ascending=False).reset_index(drop=True)
+
+
+def live_alerts(run_id: str) -> Optional[pd.DataFrame]:
+    """Return the run's alerts from the Kafka stream, or None to read Athena.
+
+    Not cached: the stream is already in memory and changes every second.
+    """
+    return live.alerts(run_id)
+
+
+@st.cache_data(ttl=LIVE_TTL_SECONDS, show_spinner=False)
+def screened(run_id: str) -> pd.DataFrame:
+    """Return how many transfers the run has scored and the latest one, from Athena."""
+    return athena.query(queries.SCREENED, [run_id])
 
 
 @st.cache_data(ttl=LIVE_TTL_SECONDS, show_spinner=False)

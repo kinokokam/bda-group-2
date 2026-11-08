@@ -3,6 +3,9 @@
 First-in, first-out queues bury the riskiest transfers behind older, milder
 ones; ranking puts them on top. Selecting one shows why it scored high and
 what both accounts have been doing.
+
+During a demo on EC2 the queue is read from the live Kafka stream; account
+history always comes from Athena.
 """
 
 from datetime import datetime
@@ -12,6 +15,11 @@ import streamlit as st
 
 import data
 import metrics
+import queries
+import theme
+from theme import Kpi
+
+LIVE_REFRESH = "2s"
 
 run_id = st.session_state["run_id"]
 
@@ -22,7 +30,7 @@ QUEUE_COLUMNS = [
 ]
 
 COLUMN_CONFIG = {
-    "priority": st.column_config.TextColumn("Priority"),
+    "priority": theme.PRIORITY_PILL,
     "score": st.column_config.NumberColumn("Risk", format="percent", help="Estimated likelihood of laundering."),
     "event_time": st.column_config.TextColumn("Time"),
     "from_account": st.column_config.TextColumn("Sender"),
@@ -47,39 +55,94 @@ def show_history(account: str) -> None:
         st.caption("No other transfers on record.")
         return
     alert_count = int(history["is_alert"].fillna(False).sum())
-    st.caption(f"{len(history):,} transfers on record (newest 200), {alert_count} of them alerts.")
+    lag = " The last minute may not show yet." if live_queue is not None else ""
+    st.caption(f"{len(history):,} transfers on record (newest 200), {alert_count} of them alerts.{lag}")
     columns = ["event_time", "direction", "from_account", "to_account", "amount", "payment_currency", "payment_format", "score", "is_alert"]
     st.dataframe(history[columns], hide_index=True, column_config=COLUMN_CONFIG, height=260, width="stretch")
 
 
-st.header("Alert queue")
-heading, refresh = st.columns([4, 1])
-heading.caption(f"Highest risk first · loaded {datetime.now():%H:%M:%S}")
-if refresh.button("Refresh", icon=":material/refresh:", width="stretch"):
+def new_since(loaded: pd.DataFrame) -> int:
+    """Count alerts in the live queue that the analyst's snapshot does not hold."""
+    current = data.live_alerts(run_id)
+    if current is None:
+        return 0
+    top = current.head(queries.ALERT_QUEUE_LIMIT)
+    return int((~top["txn_id"].isin(loaded["txn_id"])).sum())
+
+
+# The header shows counts from the queue, which loads after the Refresh button
+# is read, so its place is kept here and filled in below.
+header = st.container()
+filters, refresh = st.columns([4, 1], vertical_alignment="center")
+reload = refresh.button("Refresh", icon=":material/refresh:", width="stretch")
+if reload:
     data.alert_queue.clear()
 
-alerts = data.alert_queue(run_id)
+# Live, the queue is a snapshot the analyst refreshes on purpose: rows that
+# reorder under a selection would swap the alert being read for another.
+live_queue = data.live_alerts(run_id)
+snapshot_key = f"queue-{run_id}"
+if live_queue is None:
+    alerts = data.alert_queue(run_id)
+    loaded_at = datetime.now()
+else:
+    if reload or snapshot_key not in st.session_state:
+        st.session_state[snapshot_key] = (datetime.now(), live_queue.head(queries.ALERT_QUEUE_LIMIT))
+    loaded_at, alerts = st.session_state[snapshot_key]
+
+alerts = metrics.add_native_amounts(alerts)
+alerts["priority"] = alerts["score"].map(metrics.priority)
+tiers = alerts["priority"].value_counts()
+with header:
+    theme.hero(
+        "Alert queue",
+        f"Highest risk first · loaded {loaded_at:%H:%M:%S}"
+        + (" · a snapshot of the live feed, Refresh adds new alerts" if live_queue is not None else ""),
+        [
+            Kpi("Alerts in the queue", f"{len(alerts):,}", "⚑",
+                pill=f"Top {queries.ALERT_QUEUE_LIMIT}" if len(alerts) >= queries.ALERT_QUEUE_LIMIT else ""),
+            Kpi("High priority", f"{tiers.get('High', 0):,}", "!", pill=f"{metrics.HIGH_PRIORITY:.0%}+ risk",
+                tone="red", help="Review these first."),
+            Kpi("Medium priority", f"{tiers.get('Medium', 0):,}", "◐",
+                pill=f"{metrics.MEDIUM_PRIORITY:.0%}–{metrics.HIGH_PRIORITY:.0%}", tone="amber"),
+            Kpi("Low priority", f"{tiers.get('Low', 0):,}", "○", pill=f"Under {metrics.MEDIUM_PRIORITY:.0%}"),
+        ],
+        badge=theme.window_badge(run_id),
+    )
+
+if live_queue is not None:
+
+    @st.fragment(run_every=LIVE_REFRESH)
+    def announce_new(loaded: pd.DataFrame) -> None:
+        """Say how many alerts arrived since the snapshot, without touching it."""
+        waiting = new_since(loaded)
+        if waiting:
+            st.info(f"{waiting:,} new alert{'s' if waiting != 1 else ''} since loaded. Refresh to add them.",
+                    icon=":material/notifications_active:")
+
+    announce_new(alerts)
+
 if alerts.empty:
     st.info("No alerts in this window yet.")
     st.stop()
 
-alerts = metrics.add_native_amounts(alerts)
-alerts["priority"] = alerts["score"].map(metrics.priority)
-chosen = st.segmented_control(
+chosen = filters.segmented_control(
     "Priority", metrics.PRIORITIES, selection_mode="multi", default=metrics.PRIORITIES, label_visibility="collapsed"
 )
 shown = alerts[alerts["priority"].isin(chosen)].reset_index(drop=True)
 
-selection = st.dataframe(
-    shown[QUEUE_COLUMNS],
-    hide_index=True,
-    column_config=COLUMN_CONFIG,
-    on_select="rerun",
-    selection_mode="single-row",
-    height=360,
-    width="stretch",
-)
-st.caption(f"{len(shown):,} of {len(alerts):,} alerts shown (at most 500). Select one to investigate it.")
+with theme.card("queue"):
+    st.subheader("Alerts, highest risk first")
+    selection = st.dataframe(
+        theme.with_priority_pills(shown[QUEUE_COLUMNS]),
+        hide_index=True,
+        column_config=COLUMN_CONFIG,
+        on_select="rerun",
+        selection_mode="single-row",
+        height=360,
+        width="stretch",
+    )
+    st.caption(f"{len(shown):,} of {len(alerts):,} alerts shown (at most 500). Select one to investigate it.")
 
 rows = selection.selection.rows
 # A selection can outlive a filter change that shortened the table.
@@ -87,11 +150,10 @@ if not rows or rows[0] >= len(shown):
     st.stop()
 
 alert = shown.iloc[rows[0]]
-st.divider()
-st.subheader(f"Transfer {alert['txn_id']}")
 
 summary, reasons = st.columns([2, 3])
-with summary:
+with summary, theme.card("transfer"):
+    st.subheader(f"Transfer {alert['txn_id']}")
     risk, tier = st.columns(2)
     risk.metric("Risk", f"{alert['score']:.0%}")
     tier.metric("Priority", alert["priority"])
@@ -115,13 +177,14 @@ with summary:
     if flags:
         st.markdown("Flags: " + ", ".join(flags))
 
-with reasons:
-    st.markdown("**Why it was flagged**")
+with reasons, theme.card("reasons"):
+    st.subheader("Why it was flagged")
     contributors = metrics.parse_contributors(alert["top_contributors"], alert.to_dict())
     if contributors.empty:
         st.caption("No reasons recorded for this transfer.")
     else:
-        st.bar_chart(contributors, x="reason", y="contribution", horizontal=True, sort=False, height=220)
+        st.bar_chart(contributors, x="reason", y="contribution", horizontal=True, sort=False, height=220,
+                     x_label="Effect on the risk score", y_label="")
         st.caption("The five factors that moved the risk most. Positive pushes toward suspicion, negative away.")
         st.dataframe(
             contributors[["reason", "value", "contribution"]],
@@ -130,8 +193,10 @@ with reasons:
             width="stretch",
         )
 
-sender, receiver = st.tabs([f"Sender {alert['from_account']}", f"Receiver {alert['to_account']}"])
-with sender:
-    show_history(alert["from_account"])
-with receiver:
-    show_history(alert["to_account"])
+with theme.card("histories"):
+    st.subheader("Account history")
+    sender, receiver = st.tabs([f"Sender {alert['from_account']}", f"Receiver {alert['to_account']}"])
+    with sender:
+        show_history(alert["from_account"])
+    with receiver:
+        show_history(alert["to_account"])

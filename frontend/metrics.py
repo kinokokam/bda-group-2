@@ -21,9 +21,6 @@ ACCOUNT_ID = re.compile(r"^[0-9A-Za-z]{1,32}$")
 
 PRIORITIES = ["High", "Medium", "Low"]
 
-# The converted currencies as the data spells them, for captions.
-USD_RATED_NAMES = ["US Dollar", "Euro", "UK Pound", "Swiss Franc", "Canadian Dollar", "Australian Dollar"]
-
 CONTRIBUTOR_COLUMNS = ["feature", "reason", "value", "contribution"]
 
 # Model feature names, as in `xgboost_features.json`, in an analyst's words.
@@ -268,6 +265,91 @@ def evaluation(scored: int, alerts: int, laundering: int, caught: int) -> dict[s
         "base_rate": base_rate,
         "lift": lift,
     }
+
+
+def alert_summary(alerts: pd.DataFrame) -> dict:
+    """Derive the overview's alert figures from the alerts themselves.
+
+    The live twin of the alert columns of `queries.OVERVIEW`, for the frame the
+    Kafka feed builds.
+
+    Parameters
+    ----------
+    alerts : pd.DataFrame
+        One row per alert with `score`, `from_account` and `event_time`.
+
+    Returns
+    -------
+    dict
+        `alerts`, `high`, `medium`, `accounts_alerted` and `last_alert`.
+    """
+    score = alerts["score"]
+    return {
+        "alerts": len(alerts),
+        "high": int((score >= HIGH_PRIORITY).sum()),
+        "medium": int(((score >= MEDIUM_PRIORITY) & (score < HIGH_PRIORITY)).sum()),
+        "accounts_alerted": int(alerts["from_account"].nunique()),
+        "last_alert": alerts["event_time"].max() if len(alerts) else None,
+    }
+
+
+def alerts_by_period(alerts: pd.DataFrame, width: int) -> pd.DataFrame:
+    """Count alerts per time bucket, like the `alerts` column of `queries.ACTIVITY`.
+
+    Parameters
+    ----------
+    alerts : pd.DataFrame
+        One row per alert with `event_time`.
+    width : int
+        Characters of `event_time` that make one bucket.
+
+    Returns
+    -------
+    pd.DataFrame
+        `period` and `alerts`, oldest first.
+    """
+    periods = alerts["event_time"].astype(str).str[:width]
+    counts = periods.value_counts().sort_index()
+    return pd.DataFrame({"period": counts.index, "alerts": counts.to_numpy()})
+
+
+def period_label(period: str, by_hour: bool) -> str:
+    """Shorten a time bucket for a chart axis.
+
+    Full timestamps, rotated on the axis, leave a chart almost no room to
+    draw. A live feed spans two hours of one day, so its minutes need only the
+    time; the history spans days, so its hours keep the day.
+
+    Parameters
+    ----------
+    period : str
+        `event_time` cut to a bucket: `2022-09-10 11:01` or `2022-09-10 11`.
+    by_hour : bool
+        Whether buckets are hours.
+
+    Returns
+    -------
+    str
+        `11:01` for a minute, `09-10 11h` for an hour.
+    """
+    return f"{period[5:13]}h" if by_hour else period[11:16]
+
+
+def alerts_by_format(alerts: pd.DataFrame) -> pd.DataFrame:
+    """Count alerts per payment format, like `queries.ALERTS_BY_FORMAT`.
+
+    Parameters
+    ----------
+    alerts : pd.DataFrame
+        One row per alert with `payment_format`.
+
+    Returns
+    -------
+    pd.DataFrame
+        `payment_format` and `alerts`, most alerts first.
+    """
+    counts = alerts["payment_format"].value_counts()
+    return pd.DataFrame({"payment_format": counts.index, "alerts": counts.to_numpy()})
 
 
 def parse_contributors(raw: Optional[str], alert: Optional[dict] = None) -> pd.DataFrame:

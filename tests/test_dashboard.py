@@ -123,8 +123,9 @@ def test_rates_match_the_scoring_job():
     assert queries.PIPELINE_FX_RATES == features.FX_RATES
 
 
-def test_named_usd_currencies_are_the_converted_ones():
-    for name in metrics.USD_RATED_NAMES:
+def test_only_converted_currencies_show_a_usd_amount():
+    # The alert detail adds "($x)" only where the scoring job really converted.
+    for name in ["US Dollar", "Euro", "UK Pound", "Swiss Franc", "Canadian Dollar", "Australian Dollar"]:
         assert metrics.is_usd_rated(name)
     assert not metrics.is_usd_rated("Ruble")
     assert not metrics.is_usd_rated("Yen")  # the job knows JPY, but the data says Yen
@@ -141,9 +142,9 @@ def test_native_amount_undoes_the_scoring_job_rate(amount_usd, currency, native)
     assert metrics.native_amount(amount_usd, currency) == native
 
 
-def test_alert_value_only_sums_converted_currencies():
-    assert queries.USD_RATED in queries.OVERVIEW
-    assert "'EURO'" in queries.USD_RATED and "'RUBLE'" not in queries.USD_RATED
+def test_overview_adds_up_no_amounts():
+    # Most currencies reach the gold table unconverted, so a total would mix them.
+    assert "amount_paid_usd" not in queries.OVERVIEW
 
 
 def test_display_value_formats_numbers_for_reading():

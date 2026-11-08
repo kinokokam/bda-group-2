@@ -116,5 +116,5 @@ variable "dashboard_zip_key" {
 variable "dashboard_packages" {
   description = "Pinned to the versions in uv.lock, so EC2 runs what was tested locally."
   type        = string
-  default     = "streamlit==1.66.0 boto3==1.43.116 pandas==3.0.6"
+  default     = "streamlit==1.66.0 boto3==1.43.116 pandas==3.0.6 kafka-python==3.0.11 aws-msk-iam-sasl-signer-python==1.0.2"
 }

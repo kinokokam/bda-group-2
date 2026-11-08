@@ -11,6 +11,8 @@ import streamlit as st
 
 import data
 import metrics
+import theme
+from theme import Kpi
 
 REFRESH = "15s"
 
@@ -30,46 +32,52 @@ def render_window() -> None:
     counts = {name: int(totals[name]) for name in ("scored", "alerts", "laundering", "caught")}
     figures = metrics.evaluation(**counts)
 
-    st.caption(f"Refreshed {datetime.now():%H:%M:%S}")
-
-    caught, precision, recall, lift = st.columns(4)
-    caught.metric("Laundering caught", f"{counts['caught']:,} of {counts['laundering']:,}")
-    precision.metric("Precision", percent(figures["precision"]), help="Share of alerts that were laundering.")
-    recall.metric("Recall", percent(figures["recall"]), help="Share of laundering that raised an alert.")
-    lift.metric(
-        "Lift",
-        "–" if figures["lift"] is None else f"{figures['lift']:.0f}×",
-        help=f"Precision against the base rate of {percent(figures['base_rate'])}: how much better "
-        "the queue is than reviewing transactions at random.",
+    theme.hero(
+        "Model performance",
+        f"Alerts measured against known outcomes, for model owners · refreshed {datetime.now():%H:%M:%S}",
+        [
+            Kpi("Laundering caught", f"{counts['caught']:,}", "✓", pill=f"Of {counts['laundering']:,}"),
+            Kpi("Precision", percent(figures["precision"]), "◎", pill=f"Of {counts['alerts']:,} alerts",
+                help="Share of alerts that were laundering."),
+            Kpi("Recall", percent(figures["recall"]), "↺", help="Share of laundering that raised an alert."),
+            Kpi("Lift", "–" if figures["lift"] is None else f"{figures['lift']:.0f}×", "↗",
+                pill=f"Vs {percent(figures['base_rate'])} base rate", tone="amber",
+                help="Precision against the base rate: how much better the queue is than reviewing "
+                "transactions at random."),
+        ],
+        badge=theme.window_badge(run_id),
     )
 
     tiers, timeline = st.columns([2, 3])
-    with tiers:
+    with tiers, theme.card("tiers"):
         st.subheader("Hit rate by priority")
         by_priority = (
             frames["priority"].set_index("priority").reindex(metrics.PRIORITIES).fillna(0).astype(int)
         )
         by_priority["hit_rate"] = (by_priority["caught"] / by_priority["alerts"].where(by_priority["alerts"] > 0))
         st.dataframe(
-            by_priority.reset_index(),
+            theme.with_priority_pills(by_priority.reset_index()),
             hide_index=True,
             width="stretch",
             column_config={
-                "priority": st.column_config.TextColumn("Priority"),
+                "priority": theme.PRIORITY_PILL,
                 "alerts": st.column_config.NumberColumn("Alerts"),
                 "caught": st.column_config.NumberColumn("Laundering"),
                 "hit_rate": st.column_config.NumberColumn("Hit rate", format="percent"),
             },
         )
         st.caption("Higher tiers should hit more often; if they don't, the cut-offs need revisiting.")
-    with timeline:
+    with timeline, theme.card("timeline"):
         unit = "hour" if is_history else "minute"
         st.subheader(f"Laundering caught and missed per {unit}")
         activity = frames["activity"]
         if activity.empty:
             st.caption("Nothing scored yet.")
         else:
-            st.line_chart(activity.set_index("period")[["caught", "missed"]], height=260)
+            # Caught in the band green, missed in the BQ2 fail red.
+            activity = activity.set_index(activity["period"].map(lambda period: metrics.period_label(period, is_history)))
+            st.line_chart(activity[["caught", "missed"]], height=260, color=["#14574A", "#C93B3B"],
+                          x_label=unit.capitalize(), y_label="Transfers")
 
 
 def render_offline() -> None:
@@ -78,7 +86,12 @@ def render_offline() -> None:
     config, test = files["config"], files["test"]
     if not config and not test:
         return
+    with theme.card("offline"):
+        render_offline_card(config, test)
 
+
+def render_offline_card(config: dict, test: dict) -> None:
+    """Draw the held-out results inside their card."""
     st.subheader("Held-out test results")
     if config:
         st.caption(
@@ -114,14 +127,9 @@ def render_offline() -> None:
         )
 
 
-st.header("Model performance")
-st.caption(
-    "How the alerts compare with known outcomes. For model owners; the monitoring "
-    "pages never show outcomes, since reviewers work without them."
-)
 if is_history:
     render_window()
 else:
     st.fragment(render_window, run_every=REFRESH)()
-st.divider()
+st.caption("The monitoring pages never show outcomes, since reviewers work without them.")
 render_offline()

@@ -47,6 +47,12 @@ resource "aws_lambda_function" "replay" {
     }
   }
 
+  # pipeline.sh writes the live brokers into BOOTSTRAP once the cluster is up;
+  # "pending" is only the value at creation, so an apply must not put it back.
+  lifecycle {
+    ignore_changes = [environment[0].variables["BOOTSTRAP"]]
+  }
+
   depends_on = [
     aws_iam_role_policy_attachment.lambda_vpc,
     aws_cloudwatch_log_group.lambda,
@@ -139,5 +145,16 @@ resource "aws_kinesisanalyticsv2_application" "scorer" {
 
   cloudwatch_logging_options {
     log_stream_arn = "${aws_cloudwatch_log_group.flink.arn}:log-stream:${aws_cloudwatch_log_stream.flink.name}"
+  }
+
+  # The property groups above are only the values at creation. pipeline.sh owns
+  # the BQ1 group from then on: every phase rewrites the brokers, topics, run id
+  # and sink modes. An apply that reverted them restarted a running job on
+  # settings it could not restore its state into (8 Nov). A single property
+  # group cannot be ignored, so the run options are ignored too; change those
+  # with `aws kinesisanalyticsv2 update-application`, never by replacing the
+  # application, which would delete its snapshots.
+  lifecycle {
+    ignore_changes = [application_configuration[0].environment_properties]
   }
 }
