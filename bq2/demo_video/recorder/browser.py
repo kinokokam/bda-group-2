@@ -6,7 +6,8 @@ W, H = 1920, 1080          # physical framebuffer, 16:9 = YouTube 1080p
 CSS_W, CSS_H = 1280, 720   # CSS viewport at device scale 2
 DISPLAY = ":99"
 PROFILE = pathlib.Path(os.environ.get("FILM_PROFILE", "/film/profile"))
-FORWARDS = [(8080, 8080), (443, 443), (80, 80)]   # container localhost -> host.docker.internal
+FORWARDS = [(8080, 8080), (443, 443), (80, 80)]
+EXTRA = [(3300, "bq2-vscode", 3000)]   # VS Code web on the private bq2film docker network (no host port)   # container localhost -> host.docker.internal
 
 
 def start():
@@ -14,6 +15,8 @@ def start():
     for lp, rp in FORWARDS:
         procs.append(subprocess.Popen(["socat", f"TCP-LISTEN:{lp},fork,reuseaddr,bind=127.0.0.1",
                                        f"TCP:host.docker.internal:{rp}"]))
+    for lp, host, rp in EXTRA:
+        procs.append(subprocess.Popen(["socat", f"TCP-LISTEN:{lp},fork,reuseaddr,bind=127.0.0.1", f"TCP:{host}:{rp}"]))
     procs.append(subprocess.Popen(["python3", "-m", "http.server", "8800", "--bind", "127.0.0.1",
                                    "--directory", "/film/stage"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
     x = subprocess.Popen(["Xvfb", DISPLAY, "-screen", "0", f"{W}x{H}x24", "-nolisten", "tcp"],

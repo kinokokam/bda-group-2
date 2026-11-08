@@ -109,9 +109,7 @@ card("card_open", "BQ2 · Laundering exposure", "A daily monitor for AML transfe
      "Part 1: set up the pipeline once.  Part 2: run it end to end.")
 card("card_part2", "Part 2", "Run the pipeline end to end",
      "Batch DAG → model → daily monitor DAG → dashboards and chat.")
-card("card_recap", "Recap", "Set up once. Run with two DAGs.",
-     "Setup: bucket, Athena tables, Lambda, Airflow, Helical.   Run: aml_bq2_batch builds the tables; "
-     "aml_bq2_demo checks each day, quarantines bad ones and refreshes the dashboards.")
+card("card_recap", "BQ2 · Laundering exposure", "Thanks!", "")
 
 # ── setup ──
 term("s2_tree", [("tree bq2   # source files only", tree())], "Repository layout")

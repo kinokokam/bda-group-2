@@ -20,44 +20,51 @@ row = lambda n: f'.row[data-line="{n}"]'
 def page(label, name, step, cap, hold, acts=(), ready=DOC):
     return {"label": label, "nav": ST + name + ".html", "ready": ready, "step": step, "cap": cap, "hold": hold, "acts": list(acts)}
 
+# ── VS Code shots: the real editor (openvscode-server on the private docker network), repo mounted read-only ──
+import json as _json, urllib.parse as _up
+VSC = "http://localhost:3300/?folder=/home/workspace/bda-group-2"
+def vsc_url(path):
+    return VSC + "&payload=" + _up.quote(_json.dumps([["openFile", "vscode-remote://localhost:3300/home/workspace/bda-group-2/" + path]]))
+VSC_READY = lambda name: f"document.querySelectorAll('.view-line').length>0 && document.body.textContent.includes({name!r}) && !document.querySelector('.monaco-dialog-box')"
+CLOSE_AUX = ("js", "(()=>{const a=document.querySelector('.part.auxiliarybar');if(a&&a.offsetWidth>0){document.dispatchEvent(new KeyboardEvent('keydown',{key:'b',code:'KeyB',ctrlKey:true,altKey:true,bubbles:true}))}})()")
+def goto(line):   # Ctrl+G, type the line, Enter: the editor scrolls and highlights that line
+    return [("key", "g", "ctrl"), ("sleep", 0.7), ("type", None, str(line)), ("sleep", 0.6),
+            ("click", ".quick-input-widget .monaco-list-row"), ("sleep", 0.9)]   # a real click on "Go to line N." closes the box
+def vsc(label, path, step, cap, hold, line=None, acts=()):
+    name = path.rsplit("/", 1)[-1]
+    pre = [("sleep", 0.6)] + (goto(line) if line else [])   # the chat pane was closed once in the profile and stays closed
+    return {"label": label, "nav": vsc_url(path), "ready": VSC_READY(name), "ready_timeout": 40, "settle": 1.5,
+            "step": step, "cap": cap, "hold": hold, "acts": pre + list(acts)}
+
 SETUP = [
     page("OPEN", "card_open", "", "", 5),
     {"label": "S1_ARCH", "nav": ARCH, "ready": "document.querySelectorAll('svg').length>0", "settle": 3,
      "acts": [("js", "document.body.style.transformOrigin='50% 0';document.body.style.transform='scale(0.80)';1")],
      "step": "Setup 1 of 11", "cap": "Architecture: one S3 bucket holds every layer. A Lambda and Athena build the tables; Airflow runs two DAGs; Helical shows the results.", "hold": 13},
-    page("S2_TREE", "s2_tree", "Setup 2 of 11", "The codebase: BQ2 sits beside BQ1 in one repo: DAGs, the Lambda, SQL, the rebuild pipeline and the monitor.", 10,
-         [("sleep", 2), ("scroll", CODE, "end", 5000)]),
+    vsc("S2_TREE", "bq2/airflow/dags/aml_bq2_batch.py", "Setup 2 of 11", "The codebase: BQ2 sits beside BQ1 in one repo. Its DAGs, Lambda, SQL, rebuild pipeline and monitor each have a folder.", 10, line=2),
+    vsc("S2_TREE2", "bq2/sql/marts/channel_lift.sql", "Setup 2 of 11", "One SQL file per mart; the DAG runs them in Athena.", 8, line=1),
     page("S3_UV", "s3_uv", "Setup 3 of 11", "Install: clone the repo, then install the Python packages with uv.", 6),
-    page("S4_ENV", "s4_compose_env", "Setup 4 of 11", "Config: secrets live in .env (git-ignored) and the aml-bq2 AWS profile. The compose file only points at them.", 8,
-         [("sleep", 1.5), ("callout", row(7), "Read from .env, never committed", 2800)]),
-    page("S4_ENVEX", "s4_envexample", "Setup 4 of 11", "The template .env.example lists every key with a placeholder. Copy it to .env and fill it in; .env is git-ignored.", 8,
-         [("sleep", 1.5), ("scroll", CODE, "end", 4000)]),
-    page("S4_BUCKET", "s4_dag_bucket", "Setup 4 of 11", "The DAGs read the bucket name from AML_BUCKET (default aml-bq2).", 7,
-         [("scroll", CODE, row(21), 2000), ("callout", row(21), "One setting picks the bucket", 2600)]),
+    vsc("S4_ENVEX", ".env.example", "Setup 4 of 11", "Config: .env.example lists every key with a placeholder. Copy it to .env and fill it in; .env is git-ignored and never on screen.", 10, line=12),
+    vsc("S4_BUCKET", "bq2/airflow/dags/aml_bq2_batch.py", "Setup 4 of 11", "The DAGs read the bucket name from AML_BUCKET (default aml-bq2).", 7, line=21),
     page("S4_S3", "s4_s3", "Setup 4 of 11", "One S3 bucket, one prefix per layer: raw, reference, curated, marts, monitor.", 6),
-    page("S5_DL", "s5_download", "Setup 5 of 11", "Ingest: download IBM AML HI-Small from Kaggle.", 7, [("sleep", 1.5), ("scroll", CODE, "end", 4000)]),
+    vsc("S5_DL", "bq2/scripts/download_aml.py", "Setup 5 of 11", "Ingest: download IBM AML HI-Small from Kaggle.", 7, line=14),
     page("S5_RAW", "s5_raw", "Setup 5 of 11", "Upload it to raw/: 454 MiB of transfers plus the 320 KiB laundering pattern file.", 6),
-    page("S6_DDL", "s6_ddl", "Setup 6 of 11", "Athena tables: hand-written DDL puts a table over each S3 folder. No Glue crawler.", 9,
-         [("sleep", 1), ("scroll", CODE, row(28), 2500), ("callout", row(29), "One row per laundering transfer", 2600)]),
-    page("S7_LAMBDA", "s7_lambda", "Setup 7 of 11", "Lambda: parse_patterns turns the raw pattern blocks into one row per laundering transfer, with its scheme.", 9,
-         [("sleep", 1), ("scroll", CODE, row(27), 2500), ("callout", row(27), "HEADER: 14 columns, incl. pattern_detail", 2600)]),
+    vsc("S6_DDL", "bq2/sql/01_tables.sql", "Setup 6 of 11", "Athena tables: hand-written DDL puts a table over each S3 folder. No Glue crawler.", 9, line=36),
+    vsc("S7_LAMBDA", "bq2/lambdas/parse_patterns/handler.py", "Setup 7 of 11", "Lambda: parse_patterns turns the raw pattern blocks into one row per laundering transfer, with its scheme (14 columns).", 9, line=27),
     page("S7_DEPLOYED", "s7_deployed", "Setup 7 of 11", "Deployed to AWS Lambda: Python 3.12, 60 s timeout.", 6),
     page("S8_INPUTS", "s8_out", "Setup 8 of 11", "Monitor inputs, made once: the 11 daily slices, the live model and the FX table.", 10, [("sleep", 3), ("scroll", CODE, "end", 3000)]),
-    page("S9_MOUNTS", "s9_mounts", "Setup 9 of 11", "Add BQ2 to Airflow: mount its DAGs and code into the team's shared stack. Airflow finds the DAGs itself.", 10,
-         [("sleep", 1.5), ("callout", row(23), "BQ2's DAGs join BQ1's", 3000)]),
+    vsc("S9_MOUNTS", "docker-compose.yml", "Setup 9 of 11", "Add BQ2 to Airflow: mount its DAGs and code into the team's shared stack. Airflow finds the DAGs itself.", 10, line=30,
+        acts=[("key", "ArrowUp")] * 7 + [("sleep", 0.6)]),   # view starts at line ~18 (default creds on 11-12 stay off screen), cursor ends on 23
     page("S9_UP", "s9_up", "Setup 9 of 11", "One command starts Airflow 2.8.", 6),
     {"label": "S9_DAGS", "nav": AF + "/home?search=aml_bq2", "ready": "document.body.innerText.includes('aml_bq2_demo')",
      "step": "Setup 9 of 11", "cap": "Both BQ2 DAGs appear: aml_bq2_batch (by hand, once) and aml_bq2_demo (daily).", "hold": 7},
-    page("S10_HELICAL", "s10_override", "Setup 10 of 11", "Helical reads a DuckDB snapshot synced from S3, mounted read-only (:ro).", 8,
-         [("sleep", 1.5), ("callout", row(8), "Read-only snapshot", 2800)]),
-    page("S11_BEDROCK", "s11_bedrock", "Setup 11 of 11", "AI chat: apply.py points Helical's Instant BI at Claude Haiku 4.5 on Amazon Bedrock. No key is stored.", 9,
-         [("sleep", 1.5), ("callout", row(15), "Claude Haiku 4.5 on Bedrock", 2600)]),
+    vsc("S10_HELICAL", "helical/docker-compose.override.yml", "Setup 10 of 11", "Helical reads a DuckDB snapshot synced from S3, mounted read-only (:ro).", 8, line=8),
+    vsc("S11_BEDROCK", "helical/instantbi-bedrock/apply.py", "Setup 11 of 11", "AI chat: apply.py points Helical's Instant BI at Claude Haiku 4.5 on Amazon Bedrock. No key is stored.", 9, line=15),
 ]
 
 RUN = [
     page("PART2", "card_part2", "", "", 5),
-    page("R1_CODE", "r1_batch_code", "Run 1 of 4", "Batch DAG aml_bq2_batch, triggered by hand once: the Lambda, then Athena builds the curated table and six marts.", 8,
-         [("sleep", 1.5), ("callout", row(58), "The whole order is one line", 2800)]),
+    vsc("R1_CODE", "bq2/airflow/dags/aml_bq2_batch.py", "Run 1 of 4", "Batch DAG aml_bq2_batch, triggered by hand once: the Lambda, then Athena builds the curated table and six marts. The order is one line.", 9, line=58),
     {"label": "R1_GRAPH", "nav": f"{AF}/dags/aml_bq2_batch/grid?dag_run_id={BATCH}&tab=graph", "ready": NODES("mart_typology_profile"), "ready_timeout": 20, "settle": 2,
      "step": "Run 1 of 4", "cap": "The run: all 8 tasks green.", "hold": 8},
     {"label": "R2_LOG", "nav": f"{AF}/dags/aml_bq2_batch/grid?dag_run_id={BATCH}&task_id=curated_transactions&tab=logs",
@@ -65,17 +72,15 @@ RUN = [
      "step": "Run 1 of 4", "cap": "Each table is rebuilt in staging and audited against the live one. Only then are old files backed up and new ones published.", "hold": 9},
     page("R2_MARTS", "r2_marts", "Run 1 of 4", "Result: the six marts (and the model results) in S3.", 6),
     page("R3_MODEL", "r3_metrics", "Run 2 of 4", "Model: XGBoost, trained once in the notebook. Relay features (B) lift PR-AUC from 0.170 to 0.236.", 9),
-    page("R4_CODE", "r4_demo_code", "Run 3 of 4", "Monitor DAG aml_bq2_demo, once per day: checks, gate, accept or quarantine, report, escalation, upload, snapshot.", 9,
-         [("sleep", 1.5), ("scroll", CODE, "end", 2500), ("callout", row(112), "Checks, gate, then report and sync", 2600)]),
+    vsc("R4_CODE", "bq2/airflow/dags/aml_bq2_demo.py", "Run 3 of 4", "Monitor DAG aml_bq2_demo, once per day: checks, gate, accept or quarantine, report, escalation, upload, snapshot.", 9, line=112),
     {"label": "R4_GRID", "nav": f"{AF}/dags/aml_bq2_demo/grid", "ready": "document.body.innerText.includes('Total success')", "settle": 1.5,
      "step": "Run 3 of 4", "cap": "Backfilled 1 to 11 Sep: 11 runs, all green. The quarantine task ran on 1, 2 and 11 Sep (pink = skipped).", "hold": 10},
     {"label": "R5_SEP1", "nav": f"{AF}/dags/aml_bq2_demo/grid?dag_run_id={RUN1}&tab=graph", "ready": NODES("sync_snapshot"), "ready_timeout": 20, "settle": 2,
      "step": "Run 3 of 4", "cap": "1 Sep: drift and volume fail, so the gate sends the day to quarantine.", "hold": 9},
     {"label": "R5_SEP5", "nav": f"{AF}/dags/aml_bq2_demo/grid?dag_run_id={RUN5}&tab=graph", "ready": NODES("sync_snapshot"), "ready_timeout": 20, "settle": 2,
      "step": "Run 3 of 4", "cap": "5 Sep: all four checks pass, so the day is accepted.", "hold": 8},
-    page("R6_REPORT", "r6_report", "Run 3 of 4", "The check report: written by code from a template. Facts only, no verdict.", 9,
-         [("sleep", 1.5), ("callout", row(7), "Failed: drift and volume", 2600), ("scroll", CODE, row(9), 2000)]),
-    page("R6_ESC", "r6_escalations", "Run 3 of 4", "Every quarantined day is written to the escalation log, which the Monitor dashboard shows.", 6),
+    vsc("R6_REPORT", "bq2/out/monitor/reports/2022-09-01.json", "Run 3 of 4", "The check report: written by code from a template. Facts only, no verdict. 1 Sep failed drift and volume.", 10, line=9),
+    vsc("R6_ESC", "bq2/out/escalations.log", "Run 3 of 4", "Every quarantined day is written to the escalation log, which the Monitor dashboard shows.", 7, line=1),
     {"label": "R7_MONITOR", "nav": HI + "BQ2_Monitor.efwdd", "ready": CANV(2), "settle": 5,
      "step": "Run 4 of 4", "cap": "Results in Helical. Monitor: 11 days checked, 8 passed, 3 quarantined.", "hold": 18,
      "acts": [("sleep", 3), ("scroll", "main.ant-layout-content", "end", 12000)]},
@@ -127,3 +132,5 @@ CHAT = [
 ] + [ask(i + 1, q, v) for i, (q, v) in enumerate(QUESTIONS)]
 
 TAKES["chat"] = CHAT
+
+TAKES["vsctest"] = [SETUP[[b["label"] for b in SETUP].index("S9_MOUNTS")]]

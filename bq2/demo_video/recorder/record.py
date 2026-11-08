@@ -85,12 +85,19 @@ async def run(port):
                         for n in ((1,) if k == "clickxy" else (1, 2)):
                             for t in ("mousePressed", "mouseReleased"):
                                 await p.send("Input.dispatchMouseEvent", {"type": t, "x": x, "y": y, "button": "left", "clickCount": n})
-                    elif k == "type":
-                        await p.js(f"document.querySelector({json.dumps(act[1])}).focus();1"); await p.type_text(act[2])
-                    elif k == "key":
-                        for t in ("keyDown", "keyUp"):
-                            await p.send("Input.dispatchKeyEvent", {"type": t, "key": act[1], "code": act[1],
-                                         "windowsVirtualKeyCode": 13 if act[1] == "Enter" else 0})
+                    elif k == "wheel":                    # ("wheel", x, y, deltaY) real scroll in the editor
+                        await p.send("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": act[1], "y": act[2], "deltaX": 0, "deltaY": act[3]})
+                    elif k == "type":                     # ("type", selector_or_None, text)
+                        if act[1]: await p.js(f"document.querySelector({json.dumps(act[1])}).focus();1")
+                        await p.type_text(act[2])
+                    elif k == "key":                      # ("key", "g", "ctrl") or ("key", "Enter")
+                        MODS = {"alt": 1, "ctrl": 2, "meta": 4, "shift": 8}
+                        key = act[1]; mods = sum(MODS[m] for m in (act[2] if len(act) > 2 else "").split("+") if m)
+                        code = {"Enter": "Enter", "Escape": "Escape"}.get(key) or ("Key" + key.upper() if len(key) == 1 else key)
+                        vk = {"Enter": 13, "Escape": 27, "ArrowUp": 38, "ArrowDown": 40, "PageUp": 33, "PageDown": 34}.get(key) or (ord(key.upper()) if len(key) == 1 else 0)
+                        base = {"key": key, "code": code, "windowsVirtualKeyCode": vk, "modifiers": mods}
+                        await p.send("Input.dispatchKeyEvent", {"type": "rawKeyDown" if mods else "keyDown", **base})
+                        await p.send("Input.dispatchKeyEvent", {"type": "keyUp", **base})
                     elif k == "ready":
                         if not await p.wait_for(act[1], act[2]): print(f"  !! {b['label']}: {act[1][:60]} not ready", flush=True)
                 except Exception as e:
