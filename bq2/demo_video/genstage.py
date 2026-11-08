@@ -1,6 +1,6 @@
 """Build the film's stage pages from REAL repo files and REAL captured command output.
 Code pages show only the chosen line ranges (so nothing secret-like reaches the frame)."""
-import html, pathlib, subprocess
+import html, pathlib, re, subprocess
 from pygments import highlight
 from pygments.lexers import get_lexer_for_filename, TextLexer
 from pygments.formatters import HtmlFormatter
@@ -79,7 +79,15 @@ def card(name, kick, head, sub, step=None, total=None):
     page(name, f'<div class="card"><div class="kick">{html.escape(kick)}</div><h1>{html.escape(head)}</h1>'
                f'<p>{html.escape(sub)}</p>{dots}</div>', head)
 
-cap = lambda f: (CAP / f).read_text()
+def redact(text):
+    """Belt and braces: captured CLI output must never carry an account id, ARN, key or token into a frame."""
+    text = re.sub(r"\b\d{12}\b", "************", text)
+    text = re.sub(r"arn:aws[^\s"']*", "arn:aws:…redacted…", text)
+    text = re.sub(r"\b(AKIA|ASIA)[A-Z0-9]{16}\b", "AKIA…redacted…", text)
+    text = re.sub(r"(?i)(secret|token|password|key)(\s*[:=]\s*)\S+", r"\1\2…redacted…", text)
+    return text
+
+cap = lambda f: redact((CAP / f).read_text())
 
 def tree():
     files = subprocess.run(["git", "ls-files", "bq2"], cwd=REPO, capture_output=True, text=True).stdout.split()
