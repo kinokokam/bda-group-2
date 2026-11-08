@@ -4,6 +4,10 @@ Columns are those of `GOLD_COLUMNS` in `bq1/flink/main.py`. Values a user can
 influence are always `?` placeholders bound by `athena.query`; `{width}` in
 the activity queries is filled only from a fixed choice in `data.py`.
 
+On EC2 during a demo, the alert figures on the overview and the alert queue
+come from the Kafka alerts topic instead (`live.py`); these queries remain the
+source for everything else and the fallback when no broker is reachable.
+
 The analyst queries never select `label`: a reviewer works without knowing the
 outcome, so only the `EVALUATION_*` queries read it, for the model performance
 page.
@@ -25,7 +29,8 @@ MEDIUM_PRIORITY = 0.10
 # The rates the scoring job multiplied by, copied from `bq1/flink/features.py`
 # (a test keeps the two equal). Any other currency got 1.0, so its
 # `amount_paid_usd` is really the amount in its own currency: a 27.6 billion
-# ruble transfer reads as 27.6 billion "USD". Only these sum as dollars.
+# ruble transfer reads as 27.6 billion "USD". The views therefore show each
+# amount in its own currency (`metrics.native_amount`) and add no amounts up.
 PIPELINE_FX_RATES = {
     "USD": 1.0,
     "US DOLLAR": 1.0,
@@ -41,8 +46,6 @@ PIPELINE_FX_RATES = {
     "AUSTRALIAN DOLLAR": 0.66,
     "JPY": 0.0067,
 }
-
-USD_RATED = "upper(payment_currency) IN (" + ", ".join(f"'{name}'" for name in PIPELINE_FX_RATES) + ")"
 
 PRIORITY_CASE = f"""CASE WHEN score >= {HIGH_PRIORITY} THEN 'High'
             WHEN score >= {MEDIUM_PRIORITY} THEN 'Medium'
@@ -64,8 +67,6 @@ SELECT count(*) AS scored,
        count_if(is_alert) AS alerts,
        count_if(is_alert AND score >= {HIGH_PRIORITY}) AS high,
        count_if(is_alert AND score >= {MEDIUM_PRIORITY} AND score < {HIGH_PRIORITY}) AS medium,
-       coalesce(sum(CASE WHEN is_alert AND {USD_RATED} THEN amount_paid_usd END), 0) AS alert_value_usd,
-       count_if(is_alert AND NOT {USD_RATED}) AS alerts_unrated,
        count(DISTINCT CASE WHEN is_alert THEN from_account END) AS accounts_alerted,
        max(event_time) AS last_event
 FROM scored
@@ -91,17 +92,32 @@ GROUP BY payment_format
 ORDER BY alerts DESC
 """
 
-ALERT_QUEUE = """
-SELECT txn_id, event_time, score,
-       from_bank, from_account, to_bank, to_account,
-       amount_paid_usd, amount_received_usd, payment_currency, payment_format,
-       is_cross_bank, is_cross_currency, is_structuring_threshold,
-       sender_tx_count_24h, sender_volume_24h, receiver_tx_count_24h,
-       top_contributors
+# An alert row as the views use it. The live feed (`live.py`) keeps exactly
+# these fields from each Kafka message, so both sources give the same frame.
+ALERT_QUEUE_COLUMNS = (
+    "txn_id", "event_time", "score",
+    "from_bank", "from_account", "to_bank", "to_account",
+    "amount_paid_usd", "amount_received_usd", "payment_currency", "payment_format",
+    "is_cross_bank", "is_cross_currency", "is_structuring_threshold",
+    "sender_tx_count_24h", "sender_volume_24h", "receiver_tx_count_24h",
+    "top_contributors",
+)
+
+ALERT_QUEUE_LIMIT = 500
+
+ALERT_QUEUE = f"""
+SELECT {", ".join(ALERT_QUEUE_COLUMNS)}
 FROM scored
 WHERE run_id = ? AND is_alert
-ORDER BY score DESC, event_time
-LIMIT 500
+ORDER BY score DESC, event_time, txn_id
+LIMIT {ALERT_QUEUE_LIMIT}
+"""
+
+SCREENED = """
+SELECT count(*) AS scored,
+       max(event_time) AS last_event
+FROM scored
+WHERE run_id = ?
 """
 
 ACCOUNT_HISTORY = f"""

@@ -362,6 +362,12 @@ PY
     ;;
 
   predemo)
+    # A job left running by the last demo would be restarted under it with the
+    # new run's settings, and start_app refuses a running application anyway.
+    if [ "$(status 2>/dev/null || echo READY)" = "RUNNING" ]; then
+      echo "stopping the job left running by the last run"
+      stop_app
+    fi
     "$0" dashboard-build
     "$0" provision
     run_id=$(date +%Y%m%d-%H%M)

@@ -291,7 +291,14 @@ switched out of the job graph, so the cluster can stay destroyed throughout.
 **`predemo`** rebuilds the MSK cluster, points the application at its new
 brokers, writes this run's id to `build/run-id.txt`, creates the three topics,
 and starts Flink restored from `pre-demo`. It returns once the job is
-`RUNNING` and waiting. The cluster takes 25–30 minutes from cold.
+`RUNNING` and waiting. The cluster takes 25–30 minutes from cold. `demo` leaves
+the job running, so if it still is, `predemo` (and `redemo`) stops it first.
+
+Terraform sets the application's `BQ1` properties and the replay Lambda's
+`BOOTSTRAP` only when it creates them; after that `pipeline.sh` owns them, and
+`infra/apps.tf` ignores their drift. Before 8 Nov every `provision` reverted
+them to placeholders, which restarted a still-running job on settings it could
+not restore its state into, and the apply failed.
 
 **`demo`** replays 10 September 11:00–13:00 — 16,098 transactions, 66 of them
 laundering — at 40× speed, so roughly three minutes. Trigger the `aml_bq1_demo`
@@ -381,7 +388,9 @@ A Streamlit app in [`frontend/`](../frontend/README.md) shows the gold table to
 an analyst: an overview of what is waiting, the alert queue ranked by score with
 each alert's reasons and account history, and a watch-list of repeat senders.
 None of those pages uses the laundering labels; a separate model performance
-page does. It reads through Athena and never writes.
+page does. It reads through Athena and never writes; on EC2 during a demo, the
+overview's alert figures and the alert queue come live from the `alerts-<run_id>`
+topic instead, within about two seconds of scoring.
 
 Locally: `AWS_PROFILE=bda uv run streamlit run frontend/app.py`. On EC2: set
 `dashboard_allowed_cidr` in `infra/terraform.tfvars` to your address, and

@@ -8,6 +8,8 @@ import streamlit as st
 
 import data
 import metrics
+import theme
+from theme import Kpi
 
 run_id = st.session_state["run_id"]
 
@@ -32,28 +34,41 @@ COLUMN_CONFIG = {
 
 HISTORY_CONFIG = {**COLUMN_CONFIG, "from_account": st.column_config.TextColumn("Sender")}
 
-st.header("Watch-list")
-st.caption("Senders with two or more alerts, counting the history before this window.")
-
 watched = data.watch_list(run_id)
-if watched.empty:
-    st.info("No account has raised more than one alert yet.")
-else:
-    columns = ["from_account", "from_bank", "alerts", "alerts_this_run", "max_score", "transfers", "counterparties", "last_seen"]
-    st.dataframe(watched[columns], hide_index=True, column_config=COLUMN_CONFIG, height=360, width="stretch")
+theme.hero(
+    "Watch-list",
+    "Senders with two or more alerts, counting the history before this window",
+    [
+        Kpi("Accounts on the watch-list", f"{len(watched):,}", "◉", pill="Top 200" if len(watched) >= 200 else ""),
+        Kpi("Most alerts from one sender", f"{int(watched['alerts'].max()) if len(watched) else 0:,}", "⚑"),
+        Kpi("Alerting again in this window", f"{int((watched['alerts_this_run'] > 0).sum()) if len(watched) else 0:,}",
+            "↻", pill="This window", tone="amber", help="Watch-listed senders with an alert in the selected window."),
+        Kpi("Highest risk among them", f"{watched['max_score'].max():.0%}" if len(watched) else "–", "!",
+            help="The highest risk score any watch-listed sender has reached."),
+    ],
+    badge=theme.window_badge(run_id),
+)
 
-st.divider()
-st.subheader("Look up an account")
-account = st.text_input("Account id", placeholder="e.g. 8000EBD30").strip()
-if account:
-    if not metrics.is_account_id(account):
-        st.warning("Account ids are letters and digits only.")
+with theme.card("watch-list"):
+    st.subheader("Repeat senders")
+    if watched.empty:
+        st.info("No account has raised more than one alert yet.")
     else:
-        history = metrics.add_native_amounts(data.account_history(run_id, account))
-        if history.empty:
-            st.info(f"No transfers for {account} on record.")
+        columns = ["from_account", "from_bank", "alerts", "alerts_this_run", "max_score", "transfers", "counterparties", "last_seen"]
+        st.dataframe(watched[columns], hide_index=True, column_config=COLUMN_CONFIG, height=360, width="stretch")
+
+with theme.card("lookup"):
+    st.subheader("Look up an account")
+    account = st.text_input("Account id", placeholder="e.g. 8000EBD30").strip()
+    if account:
+        if not metrics.is_account_id(account):
+            st.warning("Account ids are letters and digits only.")
         else:
-            alert_count = int(history["is_alert"].fillna(False).sum())
-            st.caption(f"{len(history):,} transfers on record (newest 200), {alert_count} of them alerts.")
-            columns = ["event_time", "direction", "from_account", "to_account", "amount", "payment_currency", "payment_format", "score", "is_alert"]
-            st.dataframe(history[columns], hide_index=True, column_config=HISTORY_CONFIG, width="stretch")
+            history = metrics.add_native_amounts(data.account_history(run_id, account))
+            if history.empty:
+                st.info(f"No transfers for {account} on record.")
+            else:
+                alert_count = int(history["is_alert"].fillna(False).sum())
+                st.caption(f"{len(history):,} transfers on record (newest 200), {alert_count} of them alerts.")
+                columns = ["event_time", "direction", "from_account", "to_account", "amount", "payment_currency", "payment_format", "score", "is_alert"]
+                st.dataframe(history[columns], hide_index=True, column_config=HISTORY_CONFIG, width="stretch")

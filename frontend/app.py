@@ -1,9 +1,11 @@
 """Analyst dashboard over the Pipeline B gold table.
 
-Reads `aml_bq1_catalog.scored` through Athena and never writes. The sidebar
+Reads `aml_bq1_catalog.scored` through Athena and never writes; on EC2 during a
+demo, alerts also arrive live from the Kafka alerts topic (`live.py`). The sidebar
 picks the data window and is shared by every view; the views live in `views/`
 rather than `pages/` because `st.navigation` replaces Streamlit's folder
-discovery.
+discovery. The look matches the BQ2 dashboards (`theme.py`, `theme.css` and
+`.streamlit/config.toml`).
 
 Run from the repository root:
     AWS_PROFILE=bda streamlit run frontend/app.py
@@ -14,14 +16,16 @@ import streamlit as st
 import athena
 import data
 import metrics
+import theme
 
 st.set_page_config(page_title="AML alert triage", page_icon=":material/policy:", layout="wide")
+theme.apply()
 
 with st.sidebar:
     st.title("AML alert triage")
 
     try:
-        runs = data.runs()
+        runs = data.windows()
     except Exception as error:
         st.error(
             "Could not load scored transactions. Check that `AWS_PROFILE` names a "
@@ -37,6 +41,7 @@ with st.sidebar:
         row.run_id: metrics.window_label(row.run_id, row.first_event, row.last_event)
         for row in runs.itertuples()
     }
+    st.session_state["window_labels"] = labels
     run_ids = runs["run_id"].tolist()
     newest = metrics.default_run(run_ids)
     # Follow a feed that started after the page was opened; otherwise keep
@@ -56,7 +61,7 @@ with st.sidebar:
     @st.fragment(run_every=f"{data.RUNS_TTL_SECONDS}s")
     def follow_new_feed() -> None:
         """Rerun the whole page when a feed appears, so the picker switches to it."""
-        if metrics.default_run(data.runs()["run_id"].tolist()) not in st.session_state["known_runs"]:
+        if metrics.default_run(data.windows()["run_id"].tolist()) not in st.session_state["known_runs"]:
             st.rerun()
 
     follow_new_feed()

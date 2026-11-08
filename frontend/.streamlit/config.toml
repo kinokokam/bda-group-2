@@ -1,0 +1,63 @@
+# The BQ2 Helical dashboards' look (helical/dashboard-theme/): forest-green band,
+# cream page, white rounded cards, Plus Jakarta Sans. This sets what Streamlit's
+# theme can; theme.css adds the band, the header cards and the card frames.
+#
+# Next to app.py, so it applies whether the app starts from the repository root
+# or, as on EC2, from frontend/.
+
+[theme]
+base = "light"
+primaryColor = "#14574A"
+# White, because tables and charts draw their cells in this colour and sit on
+# white cards; theme.css paints the page itself cream (#FAF6E9).
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F1E4"
+textColor = "#0F2F29"
+linkColor = "#14574A"
+linkUnderline = false
+borderColor = "#EFE9D2"
+showWidgetBorder = true
+font = "Plus Jakarta Sans:https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap, Inter, Helvetica Neue, Arial, sans-serif"
+headingFontWeights = [600, 600, 500, 500, 500, 500]
+baseRadius = "0.75rem"
+buttonRadius = "full"
+metricValueFontSize = "2rem"
+paddingTop = "1.5rem"
+showSidebarBorder = false
+
+dataframeHeaderBackgroundColor = "#FFFFFF"
+dataframeHeaderTextColor = "#6F8A83"
+dataframeBorderColor = "#EFEBDC"
+
+# Status colours, as the BQ2 pills: green pass, red fail, amber quarantined, grey otherwise.
+# st.info uses the blue set, so it reads as the band green too.
+blueColor = "#14574A"
+blueBackgroundColor = "#DCEBE5"
+blueTextColor = "#14574A"
+greenColor = "#14574A"
+greenBackgroundColor = "#DCEBE5"
+greenTextColor = "#14574A"
+redColor = "#C93B3B"
+redBackgroundColor = "#FCE6E6"
+redTextColor = "#C93B3B"
+orangeColor = "#F6C64B"
+orangeBackgroundColor = "#FDEFC6"
+orangeTextColor = "#8A6410"
+yellowColor = "#F6C64B"
+yellowBackgroundColor = "#FDEFC6"
+yellowTextColor = "#8A6410"
+grayColor = "#8B8F86"
+grayBackgroundColor = "#F1EFE4"
+grayTextColor = "#8B8F86"
+
+# Single-series charts take the first colour, so every bar and line is the band green.
+chartCategoricalColors = ["#14574A", "#F6C64B", "#7FB8A4", "#C93B3B", "#3E8E7A", "#8A6410", "#B9D7CB"]
+chartSequentialColors = ["#EEF5F2", "#DCEBE5", "#C2DDD2", "#A6CDBE", "#88BBA8", "#6AA791", "#4E9079", "#357863", "#1F6352", "#14574A"]
+
+[client]
+# No "Deploy" button or developer menu; the BQ2 dashboards have no such chrome.
+toolbarMode = "viewer"
+
+[theme.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F1E4"
