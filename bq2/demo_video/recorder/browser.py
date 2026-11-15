@@ -141,7 +141,7 @@ class Page:
 
 async def login(p):
     """Log in OFF camera (demo-only default credentials of the local stacks)."""
-    await p.nav("http://localhost:8080/login/", 1)
+    await p.nav("http://localhost:8080/login/", 1); await p.wait_for("!!document.querySelector(\"#username\") || !location.pathname.startsWith(\"/login\")", 30)
     await p.js("const u=document.querySelector('#username'),w=document.querySelector('#password');"
                "if(u){u.value='admin';w.value='admin';w.form.submit()};1")
     await asyncio.sleep(3)

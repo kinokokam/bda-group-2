@@ -181,3 +181,15 @@ TAKES["v3"] = [page("V3_CARD", "card_v3", "", "", 4)] + _v3 + [
     _ask(1, "Which payment format has the highest laundering rate?",
          "ACH: 3,828 laundering transfers out of 599,685 (0.64%). Checked against the snapshot: correct."),
     _ask(2, *CTRL_Q)]
+
+# ── v2 fix (15 Nov): the run graph sat under the caption. Zoom the page out, collapse the grid, fit the graph. ──
+_Z = "(()=>{document.documentElement.style.zoom='0.72';return 1})()"
+_DEEP = "const all=[];const walk=(r)=>{r.querySelectorAll('*').forEach(e=>{all.push(e);if(e.shadowRoot)walk(e.shadowRoot)})};walk(document);"
+_COLLAPSE = ("(()=>{" + _DEEP + "const b=all.find(e=>e.tagName=='BUTTON'&&/collapse grid/i.test(e.getAttribute('aria-label')||''));"
+             "if(b){b.click();return 'collapsed'}return 'already'})()")
+_FIT = "(()=>{" + _DEEP + "const b=all.find(e=>e.classList&&e.classList.contains('react-flow__controls-fitview'));if(b){b.click();return 'fit'}return 'nofit'})()"
+for _i in (2, 3):
+    TAKES["v2"][_i] = dict(TAKES["v2"][_i], ready=NODES("gate"), prep=[_Z, _COLLAPSE, _FIT])
+_EXPAND = ("(()=>{" + _DEEP + "const b=all.find(e=>e.tagName=='BUTTON'&&/expand grid/i.test(e.getAttribute('aria-label')||''));"
+           "if(b){b.click();return 'expanded'}return 'open'})()")
+TAKES["v2"][1] = dict(TAKES["v2"][1], prep=[_EXPAND, _Z])
