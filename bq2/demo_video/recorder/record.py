@@ -57,6 +57,8 @@ async def run(port):
                 ok = await p.wait_for(b["ready"], b.get("ready_timeout", 60))
                 if not ok: print(f"  !! {b['label']}: ready condition never true", flush=True)
             await asyncio.sleep(b.get("settle", 0.8))
+            for pj in b.get("prep", []):             # layout fixes applied before the caption (off the beat's clock)
+                print("    prep ->", await p.js(pj), flush=True); await asyncio.sleep(1.2)
             for src in (CINEMA, OVERLAY):            # documents opened before injection still get them
                 await p.js(src + ";1")
             await p.js(f"__cap({json.dumps(b.get('step',''))},{json.dumps(b.get('cap',''))});1")

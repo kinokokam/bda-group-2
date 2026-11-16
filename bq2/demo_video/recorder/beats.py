@@ -171,6 +171,7 @@ TAKES["v2"] = [
 CTRL_Q = ("What percent of all laundering is caught by reviewing ACH transfers of USD 10k-50k, and what percent of all transfers does that rule review?",
           "ACH + USD 10k-50k catches 29.2% of all laundering while reviewing only 1.1% of transfers (a 26.7x lift). Matches the control-rules table.")
 _v3 = [dict(b, step=V3S) for b in CHAT[:2]]
+_v3[0] = dict(_v3[0], cap="Helical Instant BI: natural-language questions become SQL through a semantic layer; Claude Haiku 4.5 on Bedrock writes the query.")
 _v3[1] = dict(_v3[1], cap="Connect the semantic model AML BQ2 analysis: the marts, the model results and the control rules.", acts=[a if not (a[0] == "cap") else ("cap", V3S, a[2]) for a in _v3[1]["acts"]])
 def _ask(i, q, verdict):
     b = ask(i, q, verdict); b["step"] = V3S
@@ -180,3 +181,15 @@ TAKES["v3"] = [page("V3_CARD", "card_v3", "", "", 4)] + _v3 + [
     _ask(1, "Which payment format has the highest laundering rate?",
          "ACH: 3,828 laundering transfers out of 599,685 (0.64%). Checked against the snapshot: correct."),
     _ask(2, *CTRL_Q)]
+
+# ── v2 fix (15 Nov): the run graph sat under the caption. Zoom the page out, collapse the grid, fit the graph. ──
+_Z = "(()=>{document.documentElement.style.zoom='0.72';return 1})()"
+_DEEP = "const all=[];const walk=(r)=>{r.querySelectorAll('*').forEach(e=>{all.push(e);if(e.shadowRoot)walk(e.shadowRoot)})};walk(document);"
+_COLLAPSE = ("(()=>{" + _DEEP + "const b=all.find(e=>e.tagName=='BUTTON'&&/collapse grid/i.test(e.getAttribute('aria-label')||''));"
+             "if(b){b.click();return 'collapsed'}return 'already'})()")
+_FIT = "(()=>{" + _DEEP + "const b=all.find(e=>e.classList&&e.classList.contains('react-flow__controls-fitview'));if(b){b.click();return 'fit'}return 'nofit'})()"
+for _i in (2, 3):
+    TAKES["v2"][_i] = dict(TAKES["v2"][_i], ready=NODES("gate"), prep=[_Z, _COLLAPSE, _FIT])
+_EXPAND = ("(()=>{" + _DEEP + "const b=all.find(e=>e.tagName=='BUTTON'&&/expand grid/i.test(e.getAttribute('aria-label')||''));"
+           "if(b){b.click();return 'expanded'}return 'open'})()")
+TAKES["v2"][1] = dict(TAKES["v2"][1], prep=[_EXPAND, _Z])
